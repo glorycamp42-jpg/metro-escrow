@@ -1,0 +1,120 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { Search, Plus, Filter } from "lucide-react";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { escrows, fmtMoney, STATUS_META } from "@/lib/data/mock";
+
+export default function TransactionsPage() {
+  const [q, setQ] = React.useState("");
+  const filtered = escrows.filter((e) => {
+    const t = (q ?? "").toLowerCase();
+    if (!t) return true;
+    return (
+      e.id.toLowerCase().includes(t) ||
+      e.property.address.toLowerCase().includes(t) ||
+      e.property.city.toLowerCase().includes(t)
+    );
+  });
+
+  return (
+    <div className="flex flex-col gap-5">
+      <header className="flex items-end justify-between">
+        <div>
+          <h1 className="text-[24px] font-medium tracking-tighter2">Transactions</h1>
+          <p className="text-[13px] text-ink-500 mt-1">
+            Manage every escrow your office is running.
+          </p>
+        </div>
+        <Link href="/transactions/new">
+          <Button variant="primary">
+            <Plus size={14} />
+            New escrow
+          </Button>
+        </Link>
+      </header>
+
+      <Card className="p-3 flex items-center gap-2">
+        <div className="flex-1 flex items-center gap-2 px-3 h-10 rounded-md bg-cream-50 border border-cream-300">
+          <Search size={14} className="text-ink-400" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by transaction ID, address or city…"
+            className="flex-1 bg-transparent outline-none text-[13px] placeholder:text-ink-400"
+          />
+        </div>
+        <Button variant="secondary">
+          <Filter size={14} />
+          Filter
+        </Button>
+      </Card>
+
+      <Card className="p-0 overflow-hidden">
+        <div className="grid grid-cols-12 px-4 py-3 text-[11px] font-medium text-ink-400 uppercase tracking-tightish border-b border-cream-200">
+          <div className="col-span-3">Transaction</div>
+          <div className="col-span-3">Property</div>
+          <div className="col-span-2">Type</div>
+          <div className="col-span-2">Status</div>
+          <div className="col-span-1 text-right">Price</div>
+          <div className="col-span-1 text-right">Closing</div>
+        </div>
+        {filtered.length === 0 ? (
+          <div className="px-6 py-10 text-center">
+            <p className="text-[14px] font-medium text-ink-700">No matches</p>
+            <p className="text-[12px] text-ink-400 mt-1">
+              Try a different search, or open a new escrow.
+            </p>
+          </div>
+        ) : (
+          <ul>
+            {filtered.map((e) => {
+              const meta = STATUS_META[e.status];
+              return (
+                <li key={e.id}>
+                  <Link
+                    href={`/transactions/${e.id}`}
+                    className="grid grid-cols-12 px-4 py-3.5 hover:bg-cream-50 border-b border-cream-200 last:border-0"
+                  >
+                    <div className="col-span-3 text-[13px] font-medium">{e.id}</div>
+                    <div className="col-span-3">
+                      <p className="text-[13px]">{e.property.address}</p>
+                      <p className="text-[11px] text-ink-400">
+                        {e.property.city}, {e.property.state} {e.property.zip}
+                      </p>
+                    </div>
+                    <div className="col-span-2 text-[12px] text-ink-500">
+                      {e.type}
+                    </div>
+                    <div className="col-span-2">
+                      <Badge bg={meta.bg} fg={meta.fg}>
+                        {meta.label}
+                      </Badge>
+                      {e.risks.length > 0 && (
+                        <Badge bg="#FCEBEB" fg="#A32D2D" className="ml-1.5">
+                          Risk
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="col-span-1 text-right text-[13px] font-medium">
+                      {fmtMoney(e.price)}
+                    </div>
+                    <div className="col-span-1 text-right text-[12px] text-ink-500">
+                      {new Date(e.closingDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric"
+                      })}
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
+}
