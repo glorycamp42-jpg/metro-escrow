@@ -8,6 +8,8 @@ import {
   StickyNote, MessageCircle, CheckCircle2, Circle, Sparkles
 } from "lucide-react";
 import { WirePanel } from "@/components/wire/WirePanel";
+import { TitleCompliancePanel } from "@/components/transaction/TitleCompliancePanel";
+import { SettlementPanel } from "@/components/transaction/SettlementPanel";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -18,7 +20,7 @@ import {
 
 type TabKey =
   | "overview" | "parties" | "documents" | "trust"
-  | "tasks" | "wire" | "comms" | "timeline";
+  | "tasks" | "wire" | "comms" | "timeline" | "title_compliance";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
@@ -26,6 +28,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "tasks", label: "Tasks" },
   { key: "documents", label: "Documents" },
   { key: "trust", label: "Trust & statement" },
+  { key: "title_compliance", label: "Title & compliance" },
   { key: "wire", label: "Wire instructions" },
   { key: "comms", label: "Comms log" },
   { key: "timeline", label: "Timeline" }
@@ -109,7 +112,8 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
           {tab === "parties" && <PartiesTab e={e} />}
           {tab === "tasks" && <TasksTab e={e} />}
           {tab === "documents" && <DocumentsTab />}
-          {tab === "trust" && <TrustTab e={e} />}
+          {tab === "trust" && <SettlementPanel escrow={e} />}
+          {tab === "title_compliance" && <TitleCompliancePanel escrowId={e.id} />}
           {tab === "wire" && <WirePanel escrowId={e.id} initial={e.wire} />}
           {tab === "comms" && <CommsTab e={e} />}
           {tab === "timeline" && <TimelineTab e={e} />}
