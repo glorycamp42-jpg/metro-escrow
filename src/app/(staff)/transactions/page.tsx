@@ -6,12 +6,17 @@ import { Search, Plus, Filter } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { escrows, fmtMoney, STATUS_META } from "@/lib/data/mock";
+import { fmtMoney, STATUS_META, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
 
 export default function TransactionsPage() {
   const toast = useToast();
   const [q, setQ] = React.useState("");
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
   const filtered = escrows.filter((e) => {
     const t = (q ?? "").toLowerCase();
     if (!t) return true;
