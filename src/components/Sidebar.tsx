@@ -106,7 +106,7 @@ export function Sidebar() {
   const NAV = NAV_BY_ROLE[role];
 
   return (
-    <aside className="hidden md:flex w-[220px] shrink-0 flex-col bg-cream-100 border-r border-cream-300 p-4 gap-3 sticky top-0 h-screen">
+    <aside className="hidden md:flex w-[220px] shrink-0 flex-col bg-cream-100 border-r border-cream-300 p-4 gap-3 sticky top-0 h-screen print:hidden">
       <Link href="/" className="flex items-center gap-2 px-1 py-1 mb-1">
         <span
           className="grid place-items-center w-7 h-7 rounded-md text-cream-50 text-[14px] font-medium tracking-tighter2"

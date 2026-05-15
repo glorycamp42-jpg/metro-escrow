@@ -47,9 +47,30 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
     toast.push(message, "ok");
   }
 
+  const today = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
+      {/* Print-only letterhead */}
+      <div className="print-only print-letterhead">
+        <div>
+          <div className="brand">
+            METRO <span className="accent">ESCROW</span>
+          </div>
+          <div className="sub">Escrow Trust &amp; Settlement Services</div>
+        </div>
+        <div className="meta">
+          ESCROW FILE · {e.id}
+          <br />
+          Generated {today} · Jin Yu
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between print:hidden">
         <Link
           href="/transactions"
           className="text-ink-500 hover:text-ink-800 inline-flex items-center gap-1.5 text-[13px]"
@@ -97,7 +118,7 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
 
       <CriticalDateStrip e={e} />
 
-      <nav className="flex gap-1 border-b border-cream-300 overflow-x-auto no-scrollbar">
+      <nav className="flex gap-1 border-b border-cream-300 overflow-x-auto no-scrollbar print:hidden">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -127,7 +148,7 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
           {tab === "timeline" && <TimelineTab e={e} />}
         </div>
 
-        <aside className="col-span-12 lg:col-span-4 flex flex-col gap-4">
+        <aside className="col-span-12 lg:col-span-4 flex flex-col gap-4 print:hidden">
           {e.risks.length > 0 && (
             <Card className="p-4">
               <p className="text-[13px] font-medium text-red-700 mb-2">
@@ -194,6 +215,12 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
             </Link>
           </div>
         </aside>
+      </div>
+
+      {/* Print-only footer */}
+      <div className="print-only print-footer">
+        <span>Metro Escrow · Confidential</span>
+        <span>{e.id} · {today}</span>
       </div>
     </div>
   );

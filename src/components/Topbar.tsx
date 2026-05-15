@@ -7,7 +7,7 @@ import { RoleSwitcher } from "@/components/role/RoleSwitcher";
 export function Topbar() {
   const { open } = useAi();
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-cream-300 bg-cream-100/80 backdrop-blur px-5 h-14">
+    <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-cream-300 bg-cream-100/80 backdrop-blur px-5 h-14 print:hidden">
       <button
         onClick={open}
         className="flex items-center gap-2 h-9 px-3 rounded-md border border-cream-300 bg-white text-ink-500 hover:text-ink-800 hover:bg-white text-[12px] w-[320px] max-w-full justify-between"

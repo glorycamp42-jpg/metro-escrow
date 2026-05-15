@@ -45,3 +45,134 @@ textarea:focus-visible {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ============================================================
+   PRINT STYLES — professional escrow file printout
+   ============================================================ */
+
+/* Hidden by default on screen, revealed on print */
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: letter;
+    margin: 0.55in 0.6in 0.7in 0.6in;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #2c1810 !important;
+    font-size: 10.5pt !important;
+    line-height: 1.5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Show print-only blocks (letterhead, footer) */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Strip backgrounds + shadows so it reads cleanly on white */
+  main,
+  .bg-cream-50,
+  .bg-cream-100,
+  .bg-cream-200 {
+    background: #ffffff !important;
+  }
+  .shadow,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  /* Force two-column transaction layout into one clean stack */
+  .grid.grid-cols-12 {
+    display: block !important;
+  }
+  .grid.grid-cols-12 > * {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Avoid breaks inside cards / definition rows */
+  .avoid-break,
+  [data-card] {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Allow horizontally-scrolled containers to wrap */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+  .whitespace-nowrap {
+    white-space: normal !important;
+  }
+
+  /* Anchors print as plain text */
+  a,
+  a:visited {
+    color: #2c1810 !important;
+    text-decoration: none !important;
+  }
+
+  /* Headings tighter for print */
+  h1 {
+    font-size: 18pt !important;
+    line-height: 1.2 !important;
+    margin-bottom: 4pt !important;
+  }
+  h2 {
+    font-size: 12pt !important;
+    line-height: 1.25 !important;
+  }
+
+  /* Print letterhead bar */
+  .print-letterhead {
+    display: flex !important;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 2pt solid #2c1810;
+    padding-bottom: 10pt;
+    margin-bottom: 16pt;
+  }
+  .print-letterhead .brand {
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    font-size: 14pt;
+    color: #2c1810;
+  }
+  .print-letterhead .brand .accent {
+    color: #f37021;
+  }
+  .print-letterhead .sub {
+    font-size: 9pt;
+    color: #6b5847;
+    margin-top: 2pt;
+    letter-spacing: 0.02em;
+  }
+  .print-letterhead .meta {
+    text-align: right;
+    font-size: 9pt;
+    color: #6b5847;
+    line-height: 1.5;
+  }
+
+  /* Print footer (confidential / page) */
+  .print-footer {
+    border-top: 0.5pt solid #c9bba6;
+    padding-top: 6pt;
+    margin-top: 18pt;
+    font-size: 8.5pt;
+    color: #6b5847;
+    display: flex !important;
+    justify-content: space-between;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+}
