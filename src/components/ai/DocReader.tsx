@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, Upload, CheckCircle2, FileText } from "lucide-react";
+import { Sparkles, Upload, CheckCircle2, FileText, AlertTriangle } from "lucide-react";
 
 export type Extracted = {
   txnNumber?: string;
@@ -17,35 +17,68 @@ export type Extracted = {
 };
 
 /**
- * Drag-drop PDF or screenshot. Phase 3 -> POST file to /api/extract
- * which runs Claude with structured output. For now we run a deterministic
- * extractor against filename + pretend OCR text so the demo feels real.
+ * Drag-drop PDF/image. POSTs to /api/extract which calls Claude.
+ * Falls back to deterministic mock samples if the API is unavailable.
  */
 export function DocReader({ onExtract }: { onExtract: (e: Extracted) => void }) {
-  const [stage, setStage] = React.useState<"idle" | "reading" | "done">("idle");
+  const [stage, setStage] = React.useState<"idle" | "reading" | "done" | "error">("idle");
   const [filename, setFilename] = React.useState<string | null>(null);
   const [progress, setProgress] = React.useState(0);
   const [extracted, setExtracted] = React.useState<Extracted | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
 
-  function handleFiles(files: FileList | null) {
+  async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     const f = files[0];
     setFilename(f.name);
     setStage("reading");
-    setProgress(0);
-    let p = 0;
-    const tick = setInterval(() => {
-      p += 8 + Math.random() * 12;
-      if (p >= 100) {
-        p = 100;
-        clearInterval(tick);
-        const ex = simulateExtract(f.name);
+    setProgress(5);
+    setNotice(null);
+
+    const progressTimer = setInterval(() => {
+      setProgress((p) => (p < 90 ? p + 6 + Math.random() * 4 : p));
+    }, 250);
+
+    try {
+      const base64 = await fileToBase64(f);
+      const mediaType = f.type || guessMediaType(f.name);
+
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64, mediaType, filename: f.name })
+      });
+
+      const json = await res.json();
+      clearInterval(progressTimer);
+      setProgress(100);
+
+      if (json.ok && json.extracted) {
+        const ex = normaliseNulls(json.extracted as Extracted);
         setExtracted(ex);
         setStage("done");
         onExtract(ex);
+      } else {
+        // Real API failed (no key, bad PDF, parse error). Fall back to mock.
+        const ex = simulateExtract(f.name);
+        setExtracted(ex);
+        setStage("done");
+        setNotice(
+          json.reason === "ANTHROPIC_API_KEY is not configured on the server"
+            ? "Demo mode — server has no Anthropic key yet. Using sample data."
+            : "Couldn't read this file with AI — using sample data instead."
+        );
+        onExtract(ex);
       }
-      setProgress(Math.round(p));
-    }, 110);
+    } catch (err) {
+      clearInterval(progressTimer);
+      const ex = simulateExtract(f.name);
+      setExtracted(ex);
+      setProgress(100);
+      setStage("done");
+      setNotice("Network error — using sample data.");
+      onExtract(ex);
+    }
   }
 
   return (
@@ -102,7 +135,7 @@ export function DocReader({ onExtract }: { onExtract: (e: Extracted) => void }) 
               </div>
               <p className="text-[11px] text-ink-400 mt-1">
                 {progress < 30
-                  ? "Parsing pages..."
+                  ? "Sending to Claude..."
                   : progress < 70
                   ? "Identifying parties and price..."
                   : "Locking in closing date..."}
@@ -116,19 +149,18 @@ export function DocReader({ onExtract }: { onExtract: (e: Extracted) => void }) 
                 <CheckCircle2 size={14} /> Filled the form below
               </p>
               <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-emerald-900 text-[12px]">
-                {extracted.txnNumber && (
-                  <li>Transaction: {extracted.txnNumber}</li>
-                )}
+                {extracted.txnNumber && <li>Transaction: {extracted.txnNumber}</li>}
                 {extracted.address && <li>Address: {extracted.address}</li>}
                 {extracted.price && <li>Price: ${extracted.price}</li>}
-                {extracted.closingDate && (
-                  <li>Closing: {extracted.closingDate}</li>
-                )}
+                {extracted.closingDate && <li>Closing: {extracted.closingDate}</li>}
                 {extracted.buyer && <li>Buyer: {extracted.buyer}</li>}
-                {extracted.buyerEmail && (
-                  <li>Email: {extracted.buyerEmail}</li>
-                )}
+                {extracted.buyerEmail && <li>Email: {extracted.buyerEmail}</li>}
               </ul>
+              {notice && (
+                <p className="mt-2 text-[11px] text-amber-700 flex items-start gap-1">
+                  <AlertTriangle size={11} className="mt-0.5 shrink-0" /> {notice}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -137,46 +169,48 @@ export function DocReader({ onExtract }: { onExtract: (e: Extracted) => void }) 
   );
 }
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("Bad file read"));
+        return;
+      }
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function guessMediaType(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".gif")) return "image/gif";
+  return "application/octet-stream";
+}
+
+function normaliseNulls(e: Extracted): Extracted {
+  const out: Extracted = {};
+  (Object.keys(e) as (keyof Extracted)[]).forEach((k) => {
+    const v = e[k];
+    if (v !== null && v !== undefined && v !== "") out[k] = v as never;
+  });
+  return out;
+}
+
 function simulateExtract(name: string): Extracted {
-  // Deterministic by filename hash so repeated uploads produce same result
   const hash = Array.from(name).reduce((s, c) => s + c.charCodeAt(0), 0);
   const samples: Extracted[] = [
-    {
-      txnNumber: "TXN-2026-101",
-      type: "Residential Resale",
-      address: "742 Sunset Blvd",
-      city: "Beverly Hills",
-      state: "CA",
-      zip: "90210",
-      price: "1450000",
-      closingDate: "2026-06-30",
-      buyer: "Marcus Lee",
-      buyerEmail: "marcus.lee@example.com"
-    },
-    {
-      txnNumber: "TXN-2026-102",
-      type: "Investment Property",
-      address: "1820 Wilshire Ave",
-      city: "Santa Monica",
-      state: "CA",
-      zip: "90403",
-      price: "2100000",
-      closingDate: "2026-07-12",
-      buyer: "Lillian Park",
-      buyerEmail: "lillian@example.com"
-    },
-    {
-      txnNumber: "TXN-2026-103",
-      type: "Commercial",
-      address: "55 East 1st St",
-      city: "Los Angeles",
-      state: "CA",
-      zip: "90012",
-      price: "3850000",
-      closingDate: "2026-08-15",
-      buyer: "Sun & Co LLC",
-      buyerEmail: "ops@suncollc.com"
-    }
+    { txnNumber: "TXN-2026-101", type: "Residential Resale", address: "742 Sunset Blvd", city: "Beverly Hills", state: "CA", zip: "90210", price: "1450000", closingDate: "2026-06-30", buyer: "Marcus Lee", buyerEmail: "marcus.lee@example.com" },
+    { txnNumber: "TXN-2026-102", type: "Investment Property", address: "1820 Wilshire Ave", city: "Santa Monica", state: "CA", zip: "90403", price: "2100000", closingDate: "2026-07-12", buyer: "Lillian Park", buyerEmail: "lillian@example.com" },
+    { txnNumber: "TXN-2026-103", type: "Commercial", address: "55 East 1st St", city: "Los Angeles", state: "CA", zip: "90012", price: "3850000", closingDate: "2026-08-15", buyer: "Sun & Co LLC", buyerEmail: "ops@suncollc.com" }
   ];
   return samples[hash % samples.length];
 }

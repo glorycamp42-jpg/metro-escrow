@@ -34,8 +34,14 @@ Verified locally with `tsc --noEmit` — 0 type errors across all source files.
 2. Go to https://vercel.com/new and import the repo.
 3. Vercel auto-detects Next.js. No env vars needed for the demo build.
 4. Click **Deploy**. URL will be something like `metro-escrow.vercel.app` (or your team subdomain).
-5. (Phase 3) Set env vars in Vercel dashboard:
-   - `ANTHROPIC_API_KEY` — to flip the AI panel from local stub to real LLM.
+5. **Enable real AI Document Reader** — Vercel dashboard → Settings → Environment Variables:
+   - Name: `ANTHROPIC_API_KEY`
+   - Value: your key from https://console.anthropic.com/
+   - Apply to: Production, Preview, Development (all 3)
+   - Save → trigger a new deployment (or push any commit)
+   - Now `/transactions/new` → drop a real Purchase Agreement → Claude actually reads it.
+   - Without the key, the DocReader falls back to sample data with a yellow notice.
+6. (Phase 3) Additional env vars:
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` — for auth + persistence.
    - `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` — for the reminders worker.
 
