@@ -7,8 +7,10 @@ import {
   Calendar, Mail, Phone, MessageCircle, FileSignature, Package
 } from "lucide-react";
 import { escrows, appointments } from "@/lib/data/mock";
+import { useToast } from "@/components/ui/Toast";
 
 export function AssistantHome() {
+  const toast = useToast();
   const myTasks = escrows.flatMap((e) =>
     e.tasks
       .filter((t) => t.owner === "assistant" && !t.done)
@@ -72,7 +74,7 @@ export function AssistantHome() {
                     })}
                   </p>
                 </div>
-                <Button size="sm" variant="secondary">Confirm</Button>
+                <Button size="sm" variant="secondary" onClick={() => toast.push("Appointment confirmed - reminder queued", "ok")}>Confirm</Button>
               </li>
             ))}
           </ul>
@@ -83,19 +85,19 @@ export function AssistantHome() {
         <Card className="p-4">
           <p className="text-[13px] font-medium mb-3">Quick actions</p>
           <div className="flex flex-col gap-2">
-            <Button variant="secondary" className="justify-start">
+            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Signing appointment scheduler opened", "ok")}>
               <FileSignature size={13} /> Set up signing
             </Button>
-            <Button variant="secondary" className="justify-start">
+            <Button variant="secondary" className="justify-start" onClick={() => { toast.push("Closing packet sent to print queue", "ok"); window.print(); }}>
               <Package size={13} /> Print closing packet
             </Button>
-            <Button variant="secondary" className="justify-start">
+            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Dialing party for confirmation...", "info")}>
               <Phone size={13} /> Call to confirm
             </Button>
-            <Button variant="secondary" className="justify-start">
+            <Button variant="secondary" className="justify-start" onClick={() => toast.push("SMS reminder sent", "ok")}>
               <MessageCircle size={13} /> Send SMS reminder
             </Button>
-            <Button variant="secondary" className="justify-start">
+            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Welcome packet emailed", "ok")}>
               <Mail size={13} /> Email welcome packet
             </Button>
           </div>

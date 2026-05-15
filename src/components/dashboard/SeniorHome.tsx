@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ShieldCheck, AlertTriangle, ArrowUpRight } from "lucide-react";
 import { escrows, fmtMoney, STAGE_META } from "@/lib/data/mock";
+import { useToast } from "@/components/ui/Toast";
 
 export function SeniorHome() {
+  const toast = useToast();
   const flagged = escrows.filter((e) => e.risks.length > 0);
   const unverifiedWires = escrows.filter((e) => !e.wire.callbackVerified);
   const total = escrows.length;
@@ -56,7 +58,7 @@ export function SeniorHome() {
                     </span>
                   </div>
                 </div>
-                <Button size="sm" variant="primary">Review</Button>
+                <Button size="sm" variant="primary" onClick={() => toast.push("Review opened for " + e.id, "info")}>Review</Button>
               </li>
             ))}
           </ul>

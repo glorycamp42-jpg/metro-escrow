@@ -10,8 +10,10 @@ import {
   type Envelope, type EnvelopeStatus
 } from "@/lib/data/envelopes";
 import { logAudit } from "@/lib/data/audit";
+import { useToast } from "@/components/ui/Toast";
 
 export default function SignaturesPage() {
+  const toast = useToast();
   const [list, setList] = React.useState<Envelope[]>([]);
 
   React.useEffect(() => {
@@ -27,17 +29,9 @@ export default function SignaturesPage() {
   }
 
   function send(env: Envelope) {
-    update(env.id, {
-      status: "sent",
-      sentAt: new Date().toISOString()
-    });
-    logAudit({
-      who: "Jin Yu",
-      role: "Officer",
-      action: "Envelope sent for signature",
-      target: env.escrowId,
-      detail: env.document + " sent to " + env.signers.map((s) => s.name).join(", ")
-    });
+    update(env.id, { status: "sent", sentAt: new Date().toISOString() });
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Envelope sent for signature", target: env.escrowId, detail: env.document + " sent to " + env.signers.map((s) => s.name).join(", ") });
+    toast.push(env.document + " sent for signature", "ok");
   }
 
   function markCompleted(env: Envelope) {
@@ -46,13 +40,25 @@ export default function SignaturesPage() {
       completedAt: new Date().toISOString(),
       signers: env.signers.map((s) => ({ ...s, status: "signed" }))
     });
-    logAudit({
-      who: "Jin Yu",
-      role: "Officer",
-      action: "Envelope marked completed",
-      target: env.escrowId,
-      detail: env.document + " - all signatures collected"
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Envelope marked completed", target: env.escrowId, detail: env.document + " - all signatures collected" });
+    toast.push(env.document + " marked completed", "ok");
+  }
+
+  function newEnvelope() {
+    const draft: Envelope = {
+      id: "env-" + Math.random().toString(36).slice(2, 6),
+      escrowId: "TXN-2024-001",
+      document: "New document (untitled)",
+      status: "draft",
+      signers: []
+    };
+    setList((l) => {
+      const next = [draft, ...l];
+      writeEnvelopes(next);
+      return next;
     });
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Envelope drafted", target: "TXN-2024-001", detail: draft.document });
+    toast.push("New envelope created in draft", "ok");
   }
 
   const grouped: Record<EnvelopeStatus, Envelope[]> = {
@@ -69,7 +75,7 @@ export default function SignaturesPage() {
             E-signature envelopes across all escrow files. Status syncs from your provider.
           </p>
         </div>
-        <Button variant="primary">
+        <Button variant="primary" onClick={newEnvelope}>
           <FilePen size={14} /> New envelope
         </Button>
       </header>
@@ -90,22 +96,14 @@ export default function SignaturesPage() {
           <div className="col-span-2 text-right">Actions</div>
         </div>
         <ul>
-          {list.length === 0 && (
-            <p className="px-5 py-6 text-center text-[13px] text-ink-400">No envelopes.</p>
-          )}
+          {list.length === 0 && <p className="px-5 py-6 text-center text-[13px] text-ink-400">No envelopes.</p>}
           {list.map((env) => {
             const s = STATUS_LABEL[env.status];
             return (
-              <li
-                key={env.id}
-                className="grid grid-cols-12 px-5 py-3.5 border-b border-cream-200 last:border-0 items-center"
-              >
+              <li key={env.id} className="grid grid-cols-12 px-5 py-3.5 border-b border-cream-200 last:border-0 items-center">
                 <div className="col-span-3 text-[14px] font-medium">{env.document}</div>
                 <div className="col-span-2">
-                  <Link
-                    href={"/transactions/" + env.escrowId}
-                    className="text-[13px] text-hermes-500 hover:underline"
-                  >
+                  <Link href={"/transactions/" + env.escrowId} className="text-[13px] text-hermes-500 hover:underline">
                     {env.escrowId}
                   </Link>
                 </div>
@@ -113,10 +111,7 @@ export default function SignaturesPage() {
                   {env.signers.map((sg) => sg.name + " (" + sg.status + ")").join(", ")}
                 </div>
                 <div className="col-span-2">
-                  <span
-                    className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                    style={{ background: s.bg, color: s.fg }}
-                  >
+                  <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: s.bg, color: s.fg }}>
                     {s.label}
                   </span>
                 </div>
@@ -141,16 +136,12 @@ export default function SignaturesPage() {
   );
 }
 
-function Stat({
-  label, value, tone
-}: { label: string; value: string; tone?: "ok" }) {
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "ok" }) {
   const c = tone === "ok" ? "#0F6E56" : "#6B5640";
   return (
     <div className="bg-white border border-cream-300 rounded-md p-3.5 shadow-card">
       <p className="text-[12px] text-ink-400">{label}</p>
-      <p className="text-[24px] font-medium tracking-tighter2 mt-1" style={{ color: c }}>
-        {value}
-      </p>
+      <p className="text-[24px] font-medium tracking-tighter2 mt-1" style={{ color: c }}>{value}</p>
     </div>
   );
 }

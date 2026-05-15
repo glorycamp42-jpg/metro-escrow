@@ -10,6 +10,8 @@ import {
 import { WirePanel } from "@/components/wire/WirePanel";
 import { TitleCompliancePanel } from "@/components/transaction/TitleCompliancePanel";
 import { SettlementPanel } from "@/components/transaction/SettlementPanel";
+import { useToast } from "@/components/ui/Toast";
+import { logAudit } from "@/lib/data/audit";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -36,8 +38,14 @@ const TABS: { key: TabKey; label: string }[] = [
 
 export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
   const [tab, setTab] = React.useState<TabKey>("overview");
+  const toast = useToast();
   const meta = STATUS_META[e.status];
   const stage = STAGE_META[e.stage];
+
+  function quickAction(action: string, message: string) {
+    logAudit({ who: "Jin Yu", role: "Officer", action, target: e.id, detail: message });
+    toast.push(message, "ok");
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -49,13 +57,13 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
           <ArrowLeft size={15} /> All transactions
         </Link>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={() => quickAction("File summary opened", "File summary opened in new view")}>
             <FileDown size={13} /> File
           </Button>
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={() => { quickAction("File printed", "Print dialog opened"); window.print(); }}>
             <Printer size={13} /> Print
           </Button>
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={() => quickAction("File emailed", "Email queued to all parties on file")}>
             <Mail size={13} /> Email
           </Button>
         </div>
@@ -148,16 +156,16 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
           <Card className="p-4">
             <p className="text-[13px] font-medium mb-3">Quick actions</p>
             <div className="flex flex-col gap-2">
-              <Button variant="secondary" className="justify-start">
+              <Button variant="secondary" className="justify-start" onClick={() => quickAction("Add party requested", "Add party flow opened")}>
                 <Plus size={13} /> Add party
               </Button>
-              <Button variant="secondary" className="justify-start">
+              <Button variant="secondary" className="justify-start" onClick={() => quickAction("Document upload prompted", "Drag a file into Documents tab")}>
                 <Upload size={13} /> Upload document
               </Button>
-              <Button variant="secondary" className="justify-start">
+              <Button variant="secondary" className="justify-start" onClick={() => { quickAction("Message composer opened", "Switching to Messages..."); window.location.href = "/messages"; }}>
                 <MessageSquare size={13} /> Send message
               </Button>
-              <Button variant="secondary" className="justify-start">
+              <Button variant="secondary" className="justify-start" onClick={() => quickAction("Status update requested", "Status update queued for review")}>
                 <RefreshCw size={13} /> Update status
               </Button>
             </div>
@@ -303,6 +311,7 @@ function OverviewTab({ e }: { e: Escrow }) {
 }
 
 function PartiesTab({ e }: { e: Escrow }) {
+  const toast = useToast();
   const groups: Array<{ title: string; roles: string[] }> = [
     { title: "Buyer side", roles: ["buyer", "buyer_agent"] },
     { title: "Seller side", roles: ["seller", "seller_agent"] },
@@ -318,7 +327,7 @@ function PartiesTab({ e }: { e: Escrow }) {
           <Card key={g.title} className="p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[14px] font-medium">{g.title}</p>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={() => toast.push("Add " + g.title.toLowerCase() + " party form opened", "info")}>
                 <Plus size={13} /> Add
               </Button>
             </div>
@@ -372,11 +381,30 @@ function PartiesTab({ e }: { e: Escrow }) {
 }
 
 function TasksTab({ e }: { e: Escrow }) {
+  const toast = useToast();
   const [tasks, setTasks] = React.useState<Task[]>(e.tasks);
   function toggle(id: string) {
     setTasks((curr) =>
       curr.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
     );
+  }
+  function aiCompleteEligible() {
+    const eligible = tasks.filter((t) => t.owner === "ai" && !t.done);
+    if (eligible.length === 0) {
+      toast.push("Nothing eligible for AI right now", "info");
+      return;
+    }
+    setTasks((curr) =>
+      curr.map((t) => (t.owner === "ai" ? { ...t, done: true } : t))
+    );
+    logAudit({
+      who: "AI",
+      role: "AI",
+      action: "Tasks auto-completed",
+      target: e.id,
+      detail: eligible.length + " AI-owned tasks completed: " + eligible.map((t) => t.label).join(", ")
+    });
+    toast.push("AI completed " + eligible.length + " tasks (1099-S, 593, closing package)", "ok");
   }
   const groups: { key: Task["category"]; label: string }[] = [
     { key: "opening", label: "Opening" },
@@ -404,7 +432,7 @@ function TasksTab({ e }: { e: Escrow }) {
             }}
           />
         </div>
-        <Button variant="ink" size="sm">
+        <Button variant="ink" size="sm" onClick={aiCompleteEligible}>
           <Sparkles size={13} /> AI: complete eligible
         </Button>
       </Card>
@@ -463,6 +491,7 @@ function TasksTab({ e }: { e: Escrow }) {
 }
 
 function DocumentsTab() {
+  const toast = useToast();
   const docs = [
     { name: "Purchase Agreement.pdf", type: "Contract", who: "John Buyer", date: "Apr 9", status: "Signed" },
     { name: "Home Inspection Report.pdf", type: "Inspection", who: "Inspector", date: "Apr 11", status: "AI summarized" },
@@ -476,7 +505,7 @@ function DocumentsTab() {
     <Card className="p-5">
       <div className="flex items-center justify-between mb-3">
         <p className="text-[14px] font-medium">Documents · {docs.length}</p>
-        <Button variant="primary" size="sm">
+        <Button variant="primary" size="sm" onClick={() => toast.push("Document upload dialog opened", "info")}>
           <Upload size={13} /> Upload
         </Button>
       </div>
@@ -796,7 +825,6 @@ function CommsTab({ e }: { e: Escrow }) {
             const Icon = c.channel === "phone" ? Phone : c.channel === "email" ? MailIcon : c.channel === "sms" ? MessageCircle : StickyNote;
             return (
               <li
-                key={c.id}
                 className="px-5 py-3.5 border-b border-cream-200 last:border-0 flex items-start gap-3"
               >
                 <Icon size={15} className="text-ink-400 mt-0.5 shrink-0" />
@@ -848,7 +876,6 @@ function TimelineTab({ e }: { e: Escrow }) {
     </Card>
   );
 }
-
 
 function Info({ label, value }: { label: string; value: string }) {
   return (

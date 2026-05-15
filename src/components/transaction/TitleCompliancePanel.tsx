@@ -2,6 +2,7 @@
 
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
 import { Plus, ShieldCheck, AlertTriangle } from "lucide-react";
 import {
   curativeFor, KIND_LABEL, STATUS_LABEL as CURATIVE_STATUS
@@ -12,6 +13,7 @@ import {
 import { fmtMoney } from "@/lib/data/mock";
 
 export function TitleCompliancePanel({ escrowId }: { escrowId: string }) {
+  const toast = useToast();
   const curative = curativeFor(escrowId);
   const compliance = complianceFor(escrowId);
   const openCurative = curative.filter((c) => c.status !== "cleared").length;
@@ -45,7 +47,7 @@ export function TitleCompliancePanel({ escrowId }: { escrowId: string }) {
       <Card className="p-5">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[14px] font-medium">Title curative items</p>
-          <Button size="sm" variant="ghost">
+          <Button size="sm" variant="ghost" onClick={() => toast.push("New curative item form opened", "info")}>
             <Plus size={13} /> Add item
           </Button>
         </div>
@@ -95,7 +97,7 @@ export function TitleCompliancePanel({ escrowId }: { escrowId: string }) {
       <Card className="p-5">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[14px] font-medium">California compliance documents</p>
-          <Button size="sm" variant="ghost">
+          <Button size="sm" variant="ghost" onClick={() => toast.push("New compliance doc form opened", "info")}>
             <Plus size={13} /> Add doc
           </Button>
         </div>

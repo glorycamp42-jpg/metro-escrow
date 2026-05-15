@@ -5,8 +5,10 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle2, Circle, FileText, Mail, Phone } from "lucide-react";
 import { escrows } from "@/lib/data/mock";
+import { useToast } from "@/components/ui/Toast";
 
 export function ProcessorHome() {
+  const toast = useToast();
   // collect tasks owned by processor across all files
   const myTasks = escrows.flatMap((e) =>
     e.tasks
@@ -88,16 +90,16 @@ export function ProcessorHome() {
         <Card className="p-4">
           <p className="text-[13px] font-medium mb-3">Quick send</p>
           <div className="flex flex-col gap-2">
-            <Button variant="secondary" className="justify-start">
+            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Title order email drafted from template", "ok")}>
               <Mail size={13} /> Order title (template)
             </Button>
-            <Button variant="secondary" className="justify-start">
+            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Payoff demand request drafted to existing lender", "ok")}>
               <Mail size={13} /> Request payoff demand
             </Button>
-            <Button variant="secondary" className="justify-start">
+            <Button variant="secondary" className="justify-start" onClick={() => toast.push("HOA documents ordered (7-day rule)", "ok")}>
               <Mail size={13} /> Order HOA documents
             </Button>
-            <Button variant="secondary" className="justify-start">
+            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Dialing lender contact...", "info")}>
               <Phone size={13} /> Call lender
             </Button>
           </div>

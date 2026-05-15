@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Mail, MessageCircle, Bell, CheckCircle2, Sparkles } from "lucide-react";
 import { logAudit } from "@/lib/data/audit";
+import { useToast } from "@/components/ui/Toast";
 
 type Rule = {
   id: string;
@@ -16,36 +17,12 @@ type Rule = {
 };
 
 const DEFAULTS: Rule[] = [
-  {
-    id: "r-1", name: "Closing D-3 reminder",
-    trigger: "3 calendar days before closing date",
-    channel: ["email", "sms"], audience: "Buyer + Seller", enabled: true
-  },
-  {
-    id: "r-2", name: "Signing reminder",
-    trigger: "24 hours before signing appointment",
-    channel: ["sms"], audience: "Signing party", enabled: true
-  },
-  {
-    id: "r-3", name: "Wire instructions warning",
-    trigger: "On file open",
-    channel: ["email"], audience: "All parties", enabled: true
-  },
-  {
-    id: "r-4", name: "Document waiting",
-    trigger: "Document unsigned for 48 hours",
-    channel: ["email"], audience: "Pending signer", enabled: true
-  },
-  {
-    id: "r-5", name: "Loan contingency D-2",
-    trigger: "2 calendar days before loan contingency expires",
-    channel: ["email"], audience: "Buyer + Buyer agent", enabled: false
-  },
-  {
-    id: "r-6", name: "Funding confirmation",
-    trigger: "Wire received from lender",
-    channel: ["email", "sms"], audience: "All parties", enabled: true
-  }
+  { id: "r-1", name: "Closing D-3 reminder", trigger: "3 calendar days before closing date", channel: ["email", "sms"], audience: "Buyer + Seller", enabled: true },
+  { id: "r-2", name: "Signing reminder", trigger: "24 hours before signing appointment", channel: ["sms"], audience: "Signing party", enabled: true },
+  { id: "r-3", name: "Wire instructions warning", trigger: "On file open", channel: ["email"], audience: "All parties", enabled: true },
+  { id: "r-4", name: "Document waiting", trigger: "Document unsigned for 48 hours", channel: ["email"], audience: "Pending signer", enabled: true },
+  { id: "r-5", name: "Loan contingency D-2", trigger: "2 calendar days before loan contingency expires", channel: ["email"], audience: "Buyer + Buyer agent", enabled: false },
+  { id: "r-6", name: "Funding confirmation", trigger: "Wire received from lender", channel: ["email", "sms"], audience: "All parties", enabled: true }
 ];
 
 const SAMPLE_LOG = [
@@ -57,6 +34,7 @@ const SAMPLE_LOG = [
 ];
 
 export default function RemindersPage() {
+  const toast = useToast();
   const [rules, setRules] = React.useState<Rule[]>(DEFAULTS);
 
   function toggle(id: string) {
@@ -70,6 +48,7 @@ export default function RemindersPage() {
         target: "system",
         detail: just?.name ?? ""
       });
+      toast.push((just?.name ?? "Rule") + " " + (just?.enabled ? "enabled" : "disabled"), "info");
       return next;
     });
   }
@@ -80,10 +59,10 @@ export default function RemindersPage() {
         <div>
           <h1 className="text-[28px] font-medium tracking-tighter2">Reminders</h1>
           <p className="text-[14px] text-ink-500 mt-1">
-            Automated email + SMS rules. Disable anything that doesn't fit your office voice.
+            Automated email + SMS rules. Disable anything that doesn&apos;t fit your office voice.
           </p>
         </div>
-        <Button variant="ink">
+        <Button variant="ink" onClick={() => toast.push("AI is drafting a rule based on your office pattern - press Cmd+K to refine", "info")}>
           <Sparkles size={13} /> Let AI draft a custom rule
         </Button>
       </header>
@@ -98,10 +77,7 @@ export default function RemindersPage() {
         </div>
         <ul>
           {rules.map((r) => (
-            <li
-              key={r.id}
-              className="grid grid-cols-12 px-5 py-3 border-b border-cream-200 last:border-0 items-center"
-            >
+            <li key={r.id} className="grid grid-cols-12 px-5 py-3 border-b border-cream-200 last:border-0 items-center">
               <div className="col-span-4 text-[14px] font-medium">{r.name}</div>
               <div className="col-span-3 text-[12px] text-ink-500">{r.trigger}</div>
               <div className="col-span-2 flex items-center gap-1.5 flex-wrap">
@@ -126,12 +102,7 @@ export default function RemindersPage() {
                   }
                   aria-label={"Toggle " + r.name}
                 >
-                  <span
-                    className={
-                      "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all " +
-                      (r.enabled ? "left-[18px]" : "left-0.5")
-                    }
-                  />
+                  <span className={"absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all " + (r.enabled ? "left-[18px]" : "left-0.5")} />
                 </button>
               </div>
             </li>
@@ -150,10 +121,7 @@ export default function RemindersPage() {
         <ul className="divide-y divide-cream-200">
           {SAMPLE_LOG.map((log, i) => (
             <li key={i} className="flex items-center gap-3 py-2.5">
-              <div
-                className="grid place-items-center w-8 h-8 rounded-md shrink-0"
-                style={{ background: "var(--hermes-soft)", color: "var(--hermes)" }}
-              >
+              <div className="grid place-items-center w-8 h-8 rounded-md shrink-0" style={{ background: "var(--hermes-soft)", color: "var(--hermes)" }}>
                 {log.channel === "email" ? <Mail size={14} /> : <MessageCircle size={14} />}
               </div>
               <div className="flex-1 min-w-0">

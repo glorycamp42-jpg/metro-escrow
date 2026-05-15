@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/Input";
 import { escrows, fmtMoney } from "@/lib/data/mock";
 import { renderBody, type MergeFields } from "@/lib/templates";
 import { logAudit } from "@/lib/data/audit";
+import { useToast } from "@/components/ui/Toast";
 
 export function TemplateBuilder({
   slug,
@@ -19,6 +20,7 @@ export function TemplateBuilder({
   name: string;
   category: string;
 }) {
+  const toast = useToast();
   const [escrowId, setEscrowId] = React.useState(escrows[0]?.id ?? "");
   const e = escrows.find((x) => x.id === escrowId);
 
@@ -79,7 +81,11 @@ export function TemplateBuilder({
           <Button variant="secondary" onClick={handlePrint}>
             <Printer size={14} /> Print
           </Button>
-          <Button variant="primary">
+          <Button variant="primary" onClick={() => {
+            if (e) logAudit({ who: "Jin Yu", role: "Officer", action: "Document saved as PDF", target: e.id, detail: name });
+            toast.push(name + " saved as PDF (print dialog opening)", "ok");
+            window.print();
+          }}>
             <FileDown size={14} /> Save PDF
           </Button>
         </div>
@@ -95,6 +101,7 @@ export function TemplateBuilder({
           ))}
         </Select>
       </Card>
+
 
       <div className="bg-white border border-cream-300 rounded-lg shadow-card p-10 max-w-[800px] mx-auto print:border-0 print:shadow-none print:p-0 print:max-w-full">
         <p className="text-[10px] text-ink-400 uppercase tracking-tightish mb-2">

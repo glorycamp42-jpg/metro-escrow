@@ -3,6 +3,7 @@ import { Topbar } from "@/components/Topbar";
 import { AiProvider } from "@/components/ai/AiProvider";
 import { AiPanel } from "@/components/ai/AiPanel";
 import { RoleProvider } from "@/components/role/RoleProvider";
+import { ToastProvider } from "@/components/ui/Toast";
 
 export default function StaffLayout({
   children
@@ -11,6 +12,7 @@ export default function StaffLayout({
 }) {
   return (
     <RoleProvider>
+      <ToastProvider>
       <AiProvider>
         <div className="min-h-screen flex bg-cream-100">
           <Sidebar />
@@ -23,6 +25,7 @@ export default function StaffLayout({
         </div>
         <AiPanel />
       </AiProvider>
+      </ToastProvider>
     </RoleProvider>
   );
 }

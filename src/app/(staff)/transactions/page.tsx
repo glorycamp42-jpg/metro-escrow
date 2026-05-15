@@ -7,8 +7,10 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { escrows, fmtMoney, STATUS_META } from "@/lib/data/mock";
+import { useToast } from "@/components/ui/Toast";
 
 export default function TransactionsPage() {
+  const toast = useToast();
   const [q, setQ] = React.useState("");
   const filtered = escrows.filter((e) => {
     const t = (q ?? "").toLowerCase();
@@ -43,11 +45,11 @@ export default function TransactionsPage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by transaction ID, address or city…"
+            placeholder="Search by transaction ID, address or city..."
             className="flex-1 bg-transparent outline-none text-[13px] placeholder:text-ink-400"
           />
         </div>
-        <Button variant="secondary">
+        <Button variant="secondary" onClick={() => toast.push("Filter panel coming - use search above for now", "info")}>
           <Filter size={14} />
           Filter
         </Button>
@@ -65,9 +67,7 @@ export default function TransactionsPage() {
         {filtered.length === 0 ? (
           <div className="px-6 py-10 text-center">
             <p className="text-[14px] font-medium text-ink-700">No matches</p>
-            <p className="text-[12px] text-ink-400 mt-1">
-              Try a different search, or open a new escrow.
-            </p>
+            <p className="text-[12px] text-ink-400 mt-1">Try a different search, or open a new escrow.</p>
           </div>
         ) : (
           <ul>
@@ -75,38 +75,22 @@ export default function TransactionsPage() {
               const meta = STATUS_META[e.status];
               return (
                 <li key={e.id}>
-                  <Link
-                    href={`/transactions/${e.id}`}
-                    className="grid grid-cols-12 px-4 py-3.5 hover:bg-cream-50 border-b border-cream-200 last:border-0"
-                  >
+                  <Link href={"/transactions/" + e.id} className="grid grid-cols-12 px-4 py-3.5 hover:bg-cream-50 border-b border-cream-200 last:border-0">
                     <div className="col-span-3 text-[13px] font-medium">{e.id}</div>
                     <div className="col-span-3">
                       <p className="text-[13px]">{e.property.address}</p>
-                      <p className="text-[11px] text-ink-400">
-                        {e.property.city}, {e.property.state} {e.property.zip}
-                      </p>
+                      <p className="text-[11px] text-ink-400">{e.property.city}, {e.property.state} {e.property.zip}</p>
                     </div>
-                    <div className="col-span-2 text-[12px] text-ink-500">
-                      {e.type}
-                    </div>
+                    <div className="col-span-2 text-[12px] text-ink-500">{e.type}</div>
                     <div className="col-span-2">
-                      <Badge bg={meta.bg} fg={meta.fg}>
-                        {meta.label}
-                      </Badge>
+                      <Badge bg={meta.bg} fg={meta.fg}>{meta.label}</Badge>
                       {e.risks.length > 0 && (
-                        <Badge bg="#FCEBEB" fg="#A32D2D" className="ml-1.5">
-                          Risk
-                        </Badge>
+                        <Badge bg="#FCEBEB" fg="#A32D2D" className="ml-1.5">Risk</Badge>
                       )}
                     </div>
-                    <div className="col-span-1 text-right text-[13px] font-medium">
-                      {fmtMoney(e.price)}
-                    </div>
+                    <div className="col-span-1 text-right text-[13px] font-medium">{fmtMoney(e.price)}</div>
                     <div className="col-span-1 text-right text-[12px] text-ink-500">
-                      {new Date(e.closingDate).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric"
-                      })}
+                      {new Date(e.closingDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </div>
                   </Link>
                 </li>

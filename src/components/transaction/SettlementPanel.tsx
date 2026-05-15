@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { fmtMoney, type Escrow } from "@/lib/data/mock";
 import { readReceipts, METHOD_LABEL } from "@/lib/data/receipts";
+import { useToast } from "@/components/ui/Toast";
+import { logAudit } from "@/lib/data/audit";
 
 type Mode = "estimated" | "final";
 
@@ -98,11 +100,25 @@ function buildRows(e: Escrow, mode: Mode) {
 }
 
 export function SettlementPanel({ escrow: e }: { escrow: Escrow }) {
+  const toast = useToast();
   const [mode, setMode] = React.useState<Mode>("estimated");
   const rows = React.useMemo(() => buildRows(e, mode), [e, mode]);
   const [receipts, setReceipts] = React.useState(() =>
     readReceipts().filter((r) => r.escrowId === e.id)
   );
+
+  function recalc() {
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Settlement recalculated", target: e.id, detail: "Mode: " + mode });
+    toast.push("Settlement recalculated against latest figures", "ok");
+  }
+  function exportPdf() {
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Settlement PDF exported", target: e.id, detail: "Mode: " + mode });
+    toast.push("Settlement PDF ready — print dialog opening", "ok");
+    window.print();
+  }
+  function logReceipt() {
+    toast.push("Receipt entry form opened — coming in Phase 3", "info");
+  }
   const totalReceipts = receipts.reduce((s, r) => s + r.amount, 0);
 
   React.useEffect(() => {
@@ -140,10 +156,10 @@ export function SettlementPanel({ escrow: e }: { escrow: Escrow }) {
                 Final
               </button>
             </div>
-            <Button variant="secondary" size="sm">
+            <Button variant="secondary" size="sm" onClick={recalc}>
               <RefreshCw size={12} /> Recalculate
             </Button>
-            <Button variant="secondary" size="sm">
+            <Button variant="secondary" size="sm" onClick={exportPdf}>
               <FileDown size={12} /> Export PDF
             </Button>
           </div>
@@ -164,7 +180,7 @@ export function SettlementPanel({ escrow: e }: { escrow: Escrow }) {
       <Card className="p-5">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[14px] font-medium">Receipts on file</p>
-          <Button size="sm" variant="ghost">+ Log receipt</Button>
+          <Button size="sm" variant="ghost" onClick={logReceipt}>+ Log receipt</Button>
         </div>
         <p className="text-[12px] text-ink-400 mb-3">
           All deposits received into the trust account for this file. Required for 3-way reconciliation.
