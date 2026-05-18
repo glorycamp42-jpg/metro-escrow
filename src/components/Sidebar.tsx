@@ -1,11 +1,12 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home, FileText, CalendarDays, Users, MessageSquare, BarChart3,
   Settings, Plus, KanbanSquare, Wallet, FileBarChart, Inbox, ClipboardList,
-  ShieldCheck, UserCog, FilePen, Bell, BookOpen
+  ShieldCheck, UserCog, FilePen, Bell, BookOpen, X
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
@@ -104,9 +105,27 @@ export function Sidebar() {
   const { role } = useRole();
   const meta = ROLES[role];
   const NAV = NAV_BY_ROLE[role];
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
-  return (
-    <aside className="hidden md:flex w-[220px] shrink-0 flex-col bg-cream-100 border-r border-cream-300 p-4 gap-3 sticky top-0 h-screen print:hidden">
+  // Listen for hamburger toggle events from Topbar
+  React.useEffect(() => {
+    const handler = () => setMobileOpen((o) => !o);
+    const closeHandler = () => setMobileOpen(false);
+    window.addEventListener("sidebar-toggle", handler);
+    window.addEventListener("sidebar-close", closeHandler);
+    return () => {
+      window.removeEventListener("sidebar-toggle", handler);
+      window.removeEventListener("sidebar-close", closeHandler);
+    };
+  }, []);
+
+  // Close drawer when route changes
+  React.useEffect(() => {
+    setMobileOpen(false);
+  }, [path]);
+
+  const body = (
+    <>
       <Link href="/" className="flex items-center gap-2 px-1 py-1 mb-1">
         <span
           className="grid place-items-center w-7 h-7 rounded-md text-cream-50 text-[14px] font-medium tracking-tighter2"
@@ -157,7 +176,7 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-2.5 px-3 h-9 rounded-md text-[14px]",
+                "flex items-center gap-2.5 px-3 h-11 md:h-9 rounded-md text-[14px]",
                 active
                   ? "bg-white text-ink-800 shadow-card"
                   : "text-ink-500 hover:text-ink-800 hover:bg-white/60"
@@ -184,6 +203,36 @@ export function Sidebar() {
           </div>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar (persistent) */}
+      <aside className="hidden md:flex w-[220px] shrink-0 flex-col bg-cream-100 border-r border-cream-300 p-4 gap-3 sticky top-0 h-screen print:hidden">
+        {body}
+      </aside>
+
+      {/* Mobile drawer overlay */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-40 flex print:hidden">
+          <button
+            aria-label="Close menu"
+            className="absolute inset-0 bg-ink-800/40"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="relative flex w-[260px] max-w-[80vw] shrink-0 flex-col bg-cream-100 border-r border-cream-300 p-4 gap-3 h-full overflow-y-auto">
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
+              className="absolute top-3 right-3 grid place-items-center w-8 h-8 rounded-md text-ink-400 hover:text-ink-800 hover:bg-white"
+            >
+              <X size={16} />
+            </button>
+            {body}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
