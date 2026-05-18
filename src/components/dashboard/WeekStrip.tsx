@@ -4,7 +4,7 @@
  * Compact 7-day strip for the dashboard.
  * Full drag-and-drop calendar lives at /calendar.
  */
-import { appointments, escrows } from "@/lib/data/mock";
+import { appointments } from "@/lib/data/mock";
 
 const DAYS = [
   { label: "Mon", date: "May 4" },

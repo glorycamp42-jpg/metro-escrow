@@ -1,5 +1,10 @@
+"use client";
+
+import * as React from "react";
+import { useParams } from "next/navigation";
 import { CheckCircle2, Clock, MapPin } from "lucide-react";
-import { escrows, fmtMoney } from "@/lib/data/mock";
+import { fmtMoney, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import { PortalNotifications } from "@/components/portal/PortalNotifications";
 import { PortalActions } from "@/components/portal/PortalActions";
 
@@ -14,12 +19,24 @@ const STEP_LABELS = [
   "Closed"
 ];
 
-export default async function ClientPortalPage({
-  params
-}: {
-  params: Promise<{ token: string }>;
-}) {
-  const { token } = await params;
+export default function ClientPortalPage() {
+  const params = useParams<{ token: string }>();
+  const token = params?.token ?? "";
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  const [loaded, setLoaded] = React.useState(false);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+    setLoaded(true);
+  }, []);
+
+  if (!loaded) {
+    return (
+      <div className="max-w-[480px] mx-auto py-16 text-center px-6">
+        <p className="text-[13px] text-ink-400">Loading...</p>
+      </div>
+    );
+  }
+
   const e = escrows.find((x) => x.portalToken === token);
   if (!e) {
     return (

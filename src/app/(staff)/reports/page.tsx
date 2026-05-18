@@ -1,7 +1,16 @@
+"use client";
+
+import * as React from "react";
 import { Card } from "@/components/ui/Card";
-import { escrows, fmtMoney, daysUntil } from "@/lib/data/mock";
+import { fmtMoney, daysUntil, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 
 export default function ReportsPage() {
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   const aging = escrows
     .map((e) => {
       const opened = (Date.now() - new Date(e.openedAt).getTime()) / (1000 * 60 * 60 * 24);

@@ -1,15 +1,22 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import {
-  dashboardKpis, escrows, fmtMoney, STATUS_META
+  dashboardKpis, fmtMoney, STATUS_META, type Escrow
 } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import { ArrowRight, AlertTriangle } from "lucide-react";
 import { WeekStrip } from "@/components/dashboard/WeekStrip";
 
 export function OfficerHome() {
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   const allRisks = escrows.flatMap((e) =>
     e.risks.map((r) => ({ ...r, escrowId: e.id }))
   );
@@ -123,22 +130,24 @@ export function OfficerHome() {
           </Card>
         )}
 
-        <div className="rounded-lg p-4 text-cream-50" style={{ background: "var(--hermes)" }}>
-          <p className="text-[12px]" style={{ color: "var(--hermes-soft)" }}>
-            Client portal - live
-          </p>
-          <p className="text-[15px] font-medium mt-0.5">
-            {portalSpotlight.parties.find((p) => p.role === "buyer")?.name ?? "Buyer"} is on step {portalSpotlight.step} of 8
-          </p>
-          <Link
-            href={"/portal/" + portalSpotlight.portalToken}
-            target="_blank"
-            className="text-[12px] inline-flex items-center gap-1 mt-2"
-            style={{ color: "var(--hermes-soft)" }}
-          >
-            Preview portal <ArrowRight size={12} />
-          </Link>
-        </div>
+        {portalSpotlight && (
+          <div className="rounded-lg p-4 text-cream-50" style={{ background: "var(--hermes)" }}>
+            <p className="text-[12px]" style={{ color: "var(--hermes-soft)" }}>
+              Client portal - live
+            </p>
+            <p className="text-[15px] font-medium mt-0.5">
+              {portalSpotlight.parties.find((p) => p.role === "buyer")?.name ?? "Buyer"} is on step {portalSpotlight.step} of 8
+            </p>
+            <Link
+              href={"/portal/" + portalSpotlight.portalToken}
+              target="_blank"
+              className="text-[12px] inline-flex items-center gap-1 mt-2"
+              style={{ color: "var(--hermes-soft)" }}
+            >
+              Preview portal <ArrowRight size={12} />
+            </Link>
+          </div>
+        )}
       </aside>
     </div>
   );

@@ -1,7 +1,16 @@
+"use client";
+
+import * as React from "react";
 import { Card } from "@/components/ui/Card";
-import { dashboardKpis, escrows, fmtMoney } from "@/lib/data/mock";
+import { dashboardKpis, fmtMoney, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 
 export default function AnalyticsPage() {
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   const total = escrows.length;
   const closed = escrows.filter((e) => e.status === "closed").length;
   const closing = escrows.filter((e) => e.status === "pending_closing").length;

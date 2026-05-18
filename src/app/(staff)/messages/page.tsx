@@ -4,20 +4,25 @@ import * as React from "react";
 import { ArrowUp, Search, Lock } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { escrows } from "@/lib/data/mock";
+import { type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import {
   readMessages, sendMessage, ROLE_LABEL, type Message
 } from "@/lib/data/messages";
 
 export default function MessagesPage() {
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
   const [messages, setMessages] = React.useState<Message[]>([]);
-  const [active, setActive] = React.useState<string>(escrows[0]?.id ?? "");
+  const [active, setActive] = React.useState<string>("");
   const [draft, setDraft] = React.useState("");
   const [q, setQ] = React.useState("");
   const endRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
+    const list = allEscrows();
+    setEscrows(list);
     setMessages(readMessages());
+    if (list.length > 0) setActive(list[0].id);
   }, []);
 
   React.useEffect(() => {

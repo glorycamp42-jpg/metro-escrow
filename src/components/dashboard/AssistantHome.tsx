@@ -1,16 +1,23 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import {
   Calendar, Mail, Phone, MessageCircle, FileSignature, Package
 } from "lucide-react";
-import { escrows, appointments } from "@/lib/data/mock";
+import { appointments, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
 
 export function AssistantHome() {
   const toast = useToast();
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   const myTasks = escrows.flatMap((e) =>
     e.tasks
       .filter((t) => t.owner === "assistant" && !t.done)

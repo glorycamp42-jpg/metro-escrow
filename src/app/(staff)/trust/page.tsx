@@ -1,14 +1,21 @@
 "use client";
 
+import * as React from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ShieldCheck, AlertTriangle, FileDown } from "lucide-react";
-import { escrows, fmtMoney } from "@/lib/data/mock";
+import { fmtMoney, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
 import { logAudit } from "@/lib/data/audit";
 
 export default function TrustPage() {
   const toast = useToast();
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   const receipts = escrows.reduce((s, e) => s + e.settlement.emd, 0);
   const open = escrows.filter((e) => e.status !== "closed").length;
   const verifiedWires = escrows.filter((e) => e.wire.callbackVerified).length;

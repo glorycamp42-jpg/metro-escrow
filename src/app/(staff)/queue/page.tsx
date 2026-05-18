@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { CheckCircle2, Circle } from "lucide-react";
 import { useRole } from "@/components/role/RoleProvider";
 import { ROLES, type Role } from "@/lib/roles";
-import { escrows, type Task } from "@/lib/data/mock";
+import { type Escrow, type Task } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 
 const ROLE_TO_OWNER: Record<Role, "officer" | "processor" | "assistant" | "ai" | null> = {
   officer: "officer",
@@ -21,7 +22,12 @@ export default function QueuePage() {
   const meta = ROLES[role];
   const owner = ROLE_TO_OWNER[role];
 
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
   const [doneIds, setDoneIds] = React.useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
 
   type Row = Task & { escrowId: string; address: string };
 
@@ -32,7 +38,7 @@ export default function QueuePage() {
         .filter((t) => t.owner === owner)
         .map((t) => ({ ...t, escrowId: e.id, address: e.property.address }))
     );
-  }, [owner]);
+  }, [owner, escrows]);
 
   const open = rows.filter(
     (r) => !r.done && !doneIds[r.escrowId + r.id]

@@ -7,7 +7,8 @@ import {
 } from "lucide-react";
 import { useAi } from "./AiProvider";
 import { runAgent, type AgentMessage } from "@/lib/aiAgent";
-import { escrows, fmtMoney } from "@/lib/data/mock";
+import { fmtMoney, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 
 const QUICK = [
   { label: "Summarize today", prompt: "Give me a 3-bullet summary of today across all my escrows." },
@@ -23,7 +24,7 @@ type SearchHit = {
   href: string;
 };
 
-function localSearch(q: string): SearchHit[] {
+function localSearch(q: string, escrows: Escrow[]): SearchHit[] {
   if (!q.trim()) return [];
   const t = q.toLowerCase();
   const hits: SearchHit[] = [];
@@ -67,6 +68,7 @@ function localSearch(q: string): SearchHit[] {
 export function AiPanel() {
   const { isOpen, close } = useAi();
   const router = useRouter();
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
   const [input, setInput] = React.useState("");
   const [messages, setMessages] = React.useState<AgentMessage[]>([
     {
@@ -78,10 +80,14 @@ export function AiPanel() {
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
+  React.useEffect(() => {
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
   }, [isOpen]);
 
-  const hits = React.useMemo(() => localSearch(input), [input]);
+  const hits = React.useMemo(() => localSearch(input, escrows), [input, escrows]);
   const looksLikeQuery = input.trim().length > 0 && input.trim().length <= 50 && !input.includes("?") && hits.length > 0;
 
   async function send(promptOverride?: string) {

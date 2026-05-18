@@ -1,14 +1,21 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle2, Circle, FileText, Mail, Phone } from "lucide-react";
-import { escrows } from "@/lib/data/mock";
+import { type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
 
 export function ProcessorHome() {
   const toast = useToast();
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   // collect tasks owned by processor across all files
   const myTasks = escrows.flatMap((e) =>
     e.tasks

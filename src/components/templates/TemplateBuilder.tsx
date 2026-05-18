@@ -6,7 +6,8 @@ import { ArrowLeft, Printer, FileDown } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
-import { escrows, fmtMoney } from "@/lib/data/mock";
+import { fmtMoney, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import { renderBody, type MergeFields } from "@/lib/templates";
 import { logAudit } from "@/lib/data/audit";
 import { useToast } from "@/components/ui/Toast";
@@ -21,7 +22,15 @@ export function TemplateBuilder({
   category: string;
 }) {
   const toast = useToast();
-  const [escrowId, setEscrowId] = React.useState(escrows[0]?.id ?? "");
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  const [escrowId, setEscrowId] = React.useState("");
+
+  React.useEffect(() => {
+    const list = allEscrows();
+    setEscrows(list);
+    if (list.length > 0) setEscrowId(list[0].id);
+  }, []);
+
   const e = escrows.find((x) => x.id === escrowId);
 
   const merge: MergeFields = React.useMemo(() => {

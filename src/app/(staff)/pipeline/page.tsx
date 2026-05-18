@@ -1,16 +1,25 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import {
-  escrows, fmtMoney, STAGE_META, type EscrowStage, daysUntil
+  fmtMoney, STAGE_META, type EscrowStage, type Escrow, daysUntil
 } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 
 const STAGES: EscrowStage[] = [
   "opening", "contingency", "pre_closing", "closing", "post_closing"
 ];
 
 export default function PipelinePage() {
-  const byStage = new Map<EscrowStage, typeof escrows>();
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
+  const byStage = new Map<EscrowStage, Escrow[]>();
   STAGES.forEach((s) => byStage.set(s, []));
   escrows.forEach((e) => {
     byStage.get(e.stage)?.push(e);

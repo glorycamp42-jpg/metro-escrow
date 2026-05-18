@@ -1,8 +1,17 @@
+"use client";
+
+import * as React from "react";
 import { Card } from "@/components/ui/Card";
-import { escrows } from "@/lib/data/mock";
+import { type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import Link from "next/link";
 
 export default function ClientsPage() {
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   const map = new Map<string, { name: string; email: string; escrowId: string; portalToken: string }>();
   escrows.forEach((e) => {
     e.parties.forEach((p) => {

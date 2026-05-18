@@ -1,15 +1,22 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ShieldCheck, AlertTriangle, ArrowUpRight } from "lucide-react";
-import { escrows, fmtMoney, STAGE_META } from "@/lib/data/mock";
+import { fmtMoney, STAGE_META, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
 
 export function SeniorHome() {
   const toast = useToast();
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   const flagged = escrows.filter((e) => e.risks.length > 0);
   const unverifiedWires = escrows.filter((e) => !e.wire.callbackVerified);
   const total = escrows.length;

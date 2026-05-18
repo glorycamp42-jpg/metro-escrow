@@ -1,9 +1,13 @@
+"use client";
+
+import * as React from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import {
   ShieldCheck, AlertTriangle, TrendingUp
 } from "lucide-react";
-import { escrows, fmtMoney } from "@/lib/data/mock";
+import { fmtMoney, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 
 const TEAM = [
   {
@@ -59,6 +63,11 @@ const TEAM = [
 ];
 
 export default function TeamPage() {
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   const flagged = escrows.filter((e) => e.risks.length > 0).length;
   const unverifiedWires = escrows.filter((e) => !e.wire.callbackVerified).length;
   const aging = 1;

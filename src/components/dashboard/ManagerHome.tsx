@@ -1,12 +1,19 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ShieldCheck, AlertTriangle, TrendingUp, FileBarChart } from "lucide-react";
-import { escrows, fmtMoney } from "@/lib/data/mock";
+import { fmtMoney, type Escrow } from "@/lib/data/mock";
+import { allEscrows } from "@/lib/data/userEscrows";
 
 export function ManagerHome() {
+  const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  React.useEffect(() => {
+    setEscrows(allEscrows());
+  }, []);
+
   const total = escrows.length;
   const closed = escrows.filter((e) => e.status === "closed").length;
   const flagged = escrows.filter((e) => e.risks.length > 0).length;
