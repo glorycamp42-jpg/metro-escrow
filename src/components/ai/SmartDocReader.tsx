@@ -28,6 +28,7 @@ type ApiResponse =
       ok: true;
       docType: string;
       extracted: Record<string, unknown>;
+      usedModel?: string;
     }
   | { ok: false; reason: string; raw?: string };
 
@@ -84,6 +85,9 @@ export function SmartDocReader({
         setDetectedCategory(category);
         setExtracted(json.extracted);
         setStage("done");
+        if (json.usedModel === "claude-haiku-4-5") {
+          setNotice("Sonnet was rate-limited — used Haiku (faster, slightly less detailed) instead.");
+        }
 
         const summary =
           typeof json.extracted.aiSummary === "string"
@@ -214,6 +218,11 @@ export function SmartDocReader({
               {typeof extracted.aiSummary === "string" && (
                 <p className="mt-2 text-[12px] text-emerald-900">
                   {extracted.aiSummary as string}
+                </p>
+              )}
+              {notice && (
+                <p className="mt-2 text-[11px] text-amber-700 flex items-start gap-1">
+                  <AlertTriangle size={11} className="mt-0.5 shrink-0" /> {notice}
                 </p>
               )}
               <ExtractedFields extracted={extracted} />

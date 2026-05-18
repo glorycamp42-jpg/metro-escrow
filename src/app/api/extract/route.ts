@@ -226,24 +226,44 @@ export async function POST(req: Request) {
 
   const prompt = promptFor(docType);
 
-  try {
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const content: any = [
+    sourceBlock,
+    {
+      type: "text",
+      text: prompt + (filename ? "\n\nFile name (context only): " + filename : "")
+    }
+  ];
+
+  async function callClaude(model: string) {
+    return anthropic.messages.create({
+      model,
       max_tokens: 1536,
-      messages: [
-        {
-          role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: [
-            sourceBlock,
-            {
-              type: "text",
-              text: prompt + (filename ? "\n\nFile name (context only): " + filename : "")
-            }
-          ] as any
-        }
-      ]
+      messages: [{ role: "user", content }]
     });
+  }
+
+  function isRateLimited(err: unknown): boolean {
+    if (!err || typeof err !== "object") return false;
+    const e = err as { status?: number; message?: string };
+    if (e.status === 429) return true;
+    if (e.message && /rate.?limit|429/i.test(e.message)) return true;
+    return false;
+  }
+
+  try {
+    let message: Awaited<ReturnType<typeof anthropic.messages.create>>;
+    let usedModel = "claude-sonnet-4-6";
+    try {
+      message = await callClaude("claude-sonnet-4-6");
+    } catch (primaryErr) {
+      if (isRateLimited(primaryErr)) {
+        usedModel = "claude-haiku-4-5";
+        message = await callClaude("claude-haiku-4-5");
+      } else {
+        throw primaryErr;
+      }
+    }
 
     const textBlock = message.content.find((b) => b.type === "text");
     const raw = textBlock && textBlock.type === "text" ? textBlock.text : "";
@@ -272,10 +292,21 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       docType: detectedType,
-      extracted: parsed
+      extracted: parsed,
+      usedModel
     });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
+    // Surface a clean message for rate-limit errors so the UI can show it nicely
+    if (/rate.?limit|429/i.test(errMsg)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: "Rate limit reached on both Sonnet and Haiku. Wait ~60 seconds and try again, or top up credits at console.anthropic.com to advance to the next usage tier."
+        },
+        { status: 429 }
+      );
+    }
     return NextResponse.json({ ok: false, reason: errMsg }, { status: 500 });
   }
 }
