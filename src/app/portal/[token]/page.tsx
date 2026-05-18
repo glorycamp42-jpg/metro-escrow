@@ -1,6 +1,7 @@
-import { CheckCircle2, Clock, ArrowRight, Upload, FileSignature, MessageSquare, MapPin } from "lucide-react";
+import { CheckCircle2, Clock, MapPin } from "lucide-react";
 import { escrows, fmtMoney } from "@/lib/data/mock";
 import { PortalNotifications } from "@/components/portal/PortalNotifications";
+import { PortalActions } from "@/components/portal/PortalActions";
 
 const STEP_LABELS = [
   "Escrow opened",
@@ -121,27 +122,10 @@ export default async function ClientPortalPage({
         </ol>
       </section>
 
-      <section className="mt-6">
-        <p className="text-[13px] font-medium mb-3 text-ink-700">
-          What's next for you
-        </p>
-        <ActionRow
-          icon={<Upload size={16} />}
-          label="Upload proof of funds"
-          hint="Bank statement or wire confirmation · 2 minutes"
-          primary
-        />
-        <ActionRow
-          icon={<FileSignature size={16} />}
-          label="Sign disclosure packet"
-          hint="6 documents waiting"
-        />
-        <ActionRow
-          icon={<MessageSquare size={16} />}
-          label="Message your escrow officer"
-          hint="Average reply · 12 minutes"
-        />
-      </section>
+      <PortalActions
+        escrowId={e.id}
+        buyerName={buyer?.name ?? "Client"}
+      />
 
       <p className="text-[10px] text-ink-400 mt-10 text-center">
         Secured link · {token.slice(0, 8)}… · expires when escrow closes
@@ -173,40 +157,3 @@ function Stat({
   );
 }
 
-function ActionRow({
-  icon,
-  label,
-  hint,
-  primary
-}: {
-  icon: React.ReactNode;
-  label: string;
-  hint: string;
-  primary?: boolean;
-}) {
-  return (
-    <button
-      className={
-        "w-full flex items-center gap-3 rounded-lg px-4 py-3.5 mb-2 transition-colors " +
-        (primary
-          ? "border border-hermes-500 bg-hermes-50 hover:bg-hermes-100"
-          : "border border-cream-300 bg-white hover:bg-cream-50")
-      }
-    >
-      <span
-        className={
-          "grid place-items-center w-9 h-9 rounded-md " +
-          (primary ? "text-cream-50" : "text-ink-700 bg-cream-100")
-        }
-        style={primary ? { background: "var(--hermes)" } : undefined}
-      >
-        {icon}
-      </span>
-      <div className="flex-1 text-left">
-        <p className="text-[13px] font-medium text-ink-800">{label}</p>
-        <p className="text-[11px] text-ink-500 mt-0.5">{hint}</p>
-      </div>
-      <ArrowRight size={14} className="text-ink-400" />
-    </button>
-  );
-}
