@@ -11,7 +11,7 @@ import {
   type UserDocument
 } from "@/lib/data/userEscrows";
 import { sendMessage } from "@/lib/data/messages";
-import { addEnvelope } from "@/lib/data/envelopes";
+import { addEnvelope, getSignedDocuments } from "@/lib/data/envelopes";
 import { logAudit } from "@/lib/data/audit";
 
 type ToastState = { message: string; tone: "ok" | "info" } | null;
@@ -35,6 +35,18 @@ export function PortalActions({
   const [modal, setModal] = React.useState<null | "sign" | "message">(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const [toast, setToast] = React.useState<ToastState>(null);
+  const [alreadySigned, setAlreadySigned] = React.useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    setAlreadySigned(getSignedDocuments(escrowId));
+  }, [escrowId]);
+
+  function refreshSigned() {
+    setAlreadySigned(getSignedDocuments(escrowId));
+  }
+
+  const remaining = PACKET_DOCS.filter((d) => !alreadySigned.has(d));
+  const allDone = remaining.length === 0;
 
   function showToast(message: string, tone: "ok" | "info" = "ok") {
     setToast({ message, tone });
@@ -90,8 +102,14 @@ export function PortalActions({
     });
 
     let count = 0;
+    let skipped = 0;
     PACKET_DOCS.forEach((docName, idx) => {
       if (!signed[idx]) return;
+      // Skip docs that are already signed in a prior session — avoid duplicates
+      if (alreadySigned.has(docName)) {
+        skipped++;
+        return;
+      }
       count++;
       const slug = docName.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
       const uniq = Date.now() + "-" + idx;
@@ -136,19 +154,30 @@ export function PortalActions({
       });
     });
 
+    refreshSigned();
+
+    if (count === 0) {
+      // Nothing new — user resubmitted already-signed only
+      setModal(null);
+      showToast(skipped > 0 ? "Nothing new to sign — already signed" : "No documents selected", "info");
+      return;
+    }
+
+    const totalSignedNow = count + skipped;
     addPortalNotification(escrowId, {
       type: "action_required",
-      title: count === PACKET_DOCS.length ? "Disclosure packet signed" : "Partial signatures received",
+      title: totalSignedNow === PACKET_DOCS.length ? "Disclosure packet signed" : "Signatures received",
       body:
-        buyerName + " signed " + count + " of " + PACKET_DOCS.length +
-        " disclosure documents. Signed copies are in Documents and Signatures.",
+        buyerName + " signed " + count + " new disclosure document" + (count === 1 ? "" : "s") +
+        " (" + totalSignedNow + " of " + PACKET_DOCS.length + " total). " +
+        "Signed copies are in Documents and Signatures.",
       from: buyerName
     });
     setModal(null);
     showToast(
-      count === PACKET_DOCS.length
+      totalSignedNow === PACKET_DOCS.length
         ? "All disclosures signed — saved to your escrow file"
-        : count + " of " + PACKET_DOCS.length + " signed and saved"
+        : count + " new disclosure" + (count === 1 ? "" : "s") + " signed (" + totalSignedNow + " of " + PACKET_DOCS.length + ")"
     );
   }
 
@@ -195,8 +224,13 @@ export function PortalActions({
       />
       <ActionRow
         icon={<FileSignature size={16} />}
-        label="Sign disclosure packet"
-        hint={PACKET_DOCS.length + " documents waiting"}
+        label={allDone ? "Disclosure packet signed" : "Sign disclosure packet"}
+        hint={
+          allDone
+            ? "All " + PACKET_DOCS.length + " signed - tap to review"
+            : remaining.length + " of " + PACKET_DOCS.length + " documents waiting"
+        }
+        done={allDone}
         onClick={() => setModal("sign")}
       />
       <ActionRow
@@ -209,6 +243,7 @@ export function PortalActions({
       {modal === "sign" && (
         <SignPacketModal
           docs={PACKET_DOCS}
+          alreadySigned={alreadySigned}
           onClose={() => setModal(null)}
           onSubmit={handleSignAll}
         />
@@ -243,12 +278,14 @@ function ActionRow({
   label,
   hint,
   primary,
+  done,
   onClick
 }: {
   icon: React.ReactNode;
   label: string;
   hint: string;
   primary?: boolean;
+  done?: boolean;
   onClick?: () => void;
 }) {
   return (
@@ -256,7 +293,9 @@ function ActionRow({
       onClick={onClick}
       className={
         "w-full flex items-center gap-3 rounded-lg px-4 py-3.5 mb-2 transition-colors " +
-        (primary
+        (done
+          ? "border border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+          : primary
           ? "border border-hermes-500 bg-hermes-50 hover:bg-hermes-100"
           : "border border-cream-300 bg-white hover:bg-cream-50")
       }
@@ -264,11 +303,15 @@ function ActionRow({
       <span
         className={
           "grid place-items-center w-9 h-9 rounded-md " +
-          (primary ? "text-cream-50" : "text-ink-700 bg-cream-100")
+          (done
+            ? "text-emerald-700 bg-emerald-100"
+            : primary
+            ? "text-cream-50"
+            : "text-ink-700 bg-cream-100")
         }
-        style={primary ? { background: "var(--hermes)" } : undefined}
+        style={!done && primary ? { background: "var(--hermes)" } : undefined}
       >
-        {icon}
+        {done ? <CheckCircle2 size={16} /> : icon}
       </span>
       <div className="flex-1 text-left">
         <p className="text-[13px] font-medium text-ink-800">{label}</p>
@@ -283,16 +326,23 @@ function ActionRow({
 
 function SignPacketModal({
   docs,
+  alreadySigned,
   onClose,
   onSubmit
 }: {
   docs: string[];
+  alreadySigned: Set<string>;
   onClose: () => void;
   onSubmit: (signed: boolean[]) => void;
 }) {
-  const [signed, setSigned] = React.useState<boolean[]>(() => docs.map(() => false));
+  // Pre-check previously-signed docs; user can also toggle unsigned ones
+  const [signed, setSigned] = React.useState<boolean[]>(() =>
+    docs.map((d) => alreadySigned.has(d))
+  );
 
   function toggle(i: number) {
+    // Don't allow un-signing a doc that's already been signed in a prior session
+    if (alreadySigned.has(docs[i])) return;
     setSigned((s) => {
       const next = [...s];
       next[i] = !next[i];
@@ -304,8 +354,10 @@ function SignPacketModal({
     setSigned(docs.map(() => true));
   }
 
-  const signedCount = signed.filter(Boolean).length;
-  const allSigned = signedCount === docs.length;
+  const newlySignedCount = signed.filter((v, i) => v && !alreadySigned.has(docs[i])).length;
+  const totalChecked = signed.filter(Boolean).length;
+  const allDone = totalChecked === docs.length;
+  const allWerePreviouslySigned = alreadySigned.size === docs.length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-800/50 p-4">
@@ -317,62 +369,89 @@ function SignPacketModal({
           </button>
         </div>
         <p className="text-[12px] text-ink-500 mb-3">
-          Tap each document to sign. In production this opens the real e-sign envelope.
+          {allWerePreviouslySigned
+            ? "You've already signed every document. Tap Cancel to close."
+            : "Tap each remaining document to sign. Previously-signed items are locked."}
         </p>
 
         <ul className="rounded-md border border-cream-300 bg-white divide-y divide-cream-200 mb-3">
-          {docs.map((d, i) => (
-            <li
-              key={d}
-              onClick={() => toggle(i)}
-              className="flex items-center gap-3 px-3 py-3 cursor-pointer hover:bg-cream-50"
-            >
-              <button
-                aria-label={signed[i] ? "Unsign" : "Sign"}
+          {docs.map((d, i) => {
+            const wasAlready = alreadySigned.has(d);
+            const isChecked = signed[i];
+            return (
+              <li
+                key={d}
+                onClick={() => toggle(i)}
                 className={
-                  "grid place-items-center w-6 h-6 rounded-full border-2 " +
-                  (signed[i]
-                    ? "border-hermes-500 bg-hermes-500 text-cream-50"
-                    : "border-cream-300 bg-white")
+                  "flex items-center gap-3 px-3 py-3 " +
+                  (wasAlready ? "cursor-default opacity-70" : "cursor-pointer hover:bg-cream-50")
                 }
               >
-                {signed[i] && <CheckCircle2 size={14} />}
-              </button>
-              <p className={"flex-1 text-[13px] " + (signed[i] ? "text-ink-500 line-through" : "text-ink-800")}>
-                {d}
-              </p>
-              {!signed[i] && (
-                <FileSignature size={13} className="text-ink-400" />
-              )}
-            </li>
-          ))}
+                <button
+                  aria-label={isChecked ? "Signed" : "Sign"}
+                  disabled={wasAlready}
+                  className={
+                    "grid place-items-center w-6 h-6 rounded-full border-2 " +
+                    (isChecked
+                      ? "border-hermes-500 bg-hermes-500 text-cream-50"
+                      : "border-cream-300 bg-white")
+                  }
+                >
+                  {isChecked && <CheckCircle2 size={14} />}
+                </button>
+                <p
+                  className={
+                    "flex-1 text-[13px] " +
+                    (isChecked ? "text-ink-500 line-through" : "text-ink-800")
+                  }
+                >
+                  {d}
+                </p>
+                {wasAlready ? (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                    Already signed
+                  </span>
+                ) : !isChecked ? (
+                  <FileSignature size={13} className="text-ink-400" />
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
 
         <div className="flex items-center justify-between gap-2">
-          <button
-            onClick={signAll}
-            className="text-[12px] text-hermes-500 hover:underline"
-          >
-            Sign all at once
-          </button>
+          {!allWerePreviouslySigned ? (
+            <button
+              onClick={signAll}
+              className="text-[12px] text-hermes-500 hover:underline"
+            >
+              Sign all remaining
+            </button>
+          ) : (
+            <span />
+          )}
           <div className="flex gap-2">
             <button
               onClick={onClose}
               className="h-9 px-3 rounded-md border border-cream-300 bg-white text-[13px]"
             >
-              Cancel
+              {allWerePreviouslySigned ? "Close" : "Cancel"}
             </button>
-            <button
-              onClick={() => onSubmit(signed)}
-              disabled={signedCount === 0}
-              className={
-                "h-9 px-3 rounded-md text-[13px] font-medium text-cream-50 " +
-                (signedCount === 0 ? "opacity-50 cursor-not-allowed" : "")
-              }
-              style={{ background: "var(--hermes)" }}
-            >
-              {allSigned ? "Submit all signed" : "Submit " + signedCount + " signed"}
-            </button>
+            {!allWerePreviouslySigned && (
+              <button
+                onClick={() => onSubmit(signed)}
+                disabled={newlySignedCount === 0}
+                className={
+                  "h-9 px-3 rounded-md text-[13px] font-medium text-cream-50 " +
+                  (newlySignedCount === 0 ? "opacity-50 cursor-not-allowed" : "")
+                }
+                style={{ background: "var(--hermes)" }}
+              >
+                {allDone
+                  ? "Submit " + newlySignedCount + " new"
+                  : "Submit " + newlySignedCount + " signed"}
+              </button>
+            )}
           </div>
         </div>
       </div>

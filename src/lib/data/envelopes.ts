@@ -76,6 +76,20 @@ export function addEnvelope(env: Envelope): Envelope {
   return env;
 }
 
+/** Set of completed (signed) document names for an escrow. */
+export function getSignedDocuments(escrowId: string): Set<string> {
+  const list = readEnvelopes();
+  const out = new Set<string>();
+  for (const env of list) {
+    if (env.escrowId !== escrowId) continue;
+    const allSigned = env.signers.length > 0 && env.signers.every((s) => s.status === "signed");
+    if (env.status === "completed" || env.status === "signed" || allSigned) {
+      out.add(env.document);
+    }
+  }
+  return out;
+}
+
 export const STATUS_LABEL: Record<EnvelopeStatus, { label: string; bg: string; fg: string }> = {
   draft: { label: "Draft", bg: "#F2EBDA", fg: "#6B5640" },
   sent: { label: "Sent", bg: "#E6F1FB", fg: "#185FA5" },
