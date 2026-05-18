@@ -134,6 +134,36 @@ export function addEscrowDocument(id: string, doc: UserDocument) {
   writePatches(all);
 }
 
+/** Remove a single uploaded document from an escrow. */
+export function removeEscrowDocument(escrowId: string, docId: string) {
+  const all = readPatches();
+  const docs = all[escrowId]?.documents ?? [];
+  all[escrowId] = {
+    ...all[escrowId],
+    documents: docs.filter((d) => d.id !== docId)
+  };
+  writePatches(all);
+}
+
+/** Move an uploaded document from one escrow to another. */
+export function moveEscrowDocument(fromEscrowId: string, toEscrowId: string, docId: string) {
+  if (fromEscrowId === toEscrowId) return;
+  const all = readPatches();
+  const fromDocs = all[fromEscrowId]?.documents ?? [];
+  const doc = fromDocs.find((d) => d.id === docId);
+  if (!doc) return;
+  all[fromEscrowId] = {
+    ...all[fromEscrowId],
+    documents: fromDocs.filter((d) => d.id !== docId)
+  };
+  const toDocs = all[toEscrowId]?.documents ?? [];
+  all[toEscrowId] = {
+    ...all[toEscrowId],
+    documents: [...toDocs, doc]
+  };
+  writePatches(all);
+}
+
 export function addEscrowParty(id: string, party: Party, currentParties: Party[]) {
   const all = readPatches();
   const merged = [...currentParties, party];

@@ -11,6 +11,7 @@ import { WirePanel } from "@/components/wire/WirePanel";
 import { TitleCompliancePanel } from "@/components/transaction/TitleCompliancePanel";
 import { SettlementPanel } from "@/components/transaction/SettlementPanel";
 import { SmartDocReader } from "@/components/ai/SmartDocReader";
+import { DocumentRowActions } from "@/components/ai/DocumentRowActions";
 import { useToast } from "@/components/ui/Toast";
 import { logAudit } from "@/lib/data/audit";
 import { Card } from "@/components/ui/Card";
@@ -22,7 +23,7 @@ import {
 } from "@/lib/data/mock";
 import {
   addEscrowDocument, addEscrowParty, updateEscrowStatus,
-  findEscrow, getEscrowDocuments, type UserDocument
+  findEscrow, getEscrowDocuments, allEscrows, type UserDocument
 } from "@/lib/data/userEscrows";
 
 type TabKey =
@@ -648,11 +649,19 @@ function TasksTab({ e }: { e: Escrow }) {
 function DocumentsTab({ escrow, onApplied }: { escrow: Escrow; onApplied: () => void }) {
   const toast = useToast();
   const [userDocs, setUserDocs] = React.useState<UserDocument[]>([]);
+  const [escrowList, setEscrowList] = React.useState<Escrow[]>([]);
   const escrowId = escrow.id;
 
   React.useEffect(() => {
     setUserDocs(getEscrowDocuments(escrowId));
+    setEscrowList(allEscrows());
   }, [escrowId]);
+
+  function refreshDocs() {
+    setUserDocs(getEscrowDocuments(escrowId));
+    setEscrowList(allEscrows());
+    onApplied();
+  }
 
   function handleSaved(doc: UserDocument) {
     addEscrowDocument(escrowId, doc);
@@ -711,6 +720,12 @@ function DocumentsTab({ escrow, onApplied }: { escrow: Escrow; onApplied: () => 
                     </p>
                   )}
                 </div>
+                <DocumentRowActions
+                  doc={d}
+                  currentEscrowId={escrowId}
+                  allEscrows={escrowList}
+                  onChange={refreshDocs}
+                />
               </li>
             ))}
           </ul>

@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Upload, FileText, Sparkles, X } from "lucide-react";
 import { SmartDocReader } from "@/components/ai/SmartDocReader";
+import { DocumentRowActions } from "@/components/ai/DocumentRowActions";
 import {
   allEscrows,
   addEscrowDocument,
@@ -126,6 +127,12 @@ export default function DocumentsPage() {
                     {d.docCategory}
                   </span>
                 )}
+                <DocumentRowActions
+                  doc={d}
+                  currentEscrowId={d.escrowId}
+                  allEscrows={escrows}
+                  onChange={refresh}
+                />
               </li>
             ))}
           </ul>
