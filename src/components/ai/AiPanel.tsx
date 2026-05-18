@@ -93,12 +93,41 @@ export function AiPanel() {
   async function send(promptOverride?: string) {
     const prompt = (promptOverride ?? input).trim();
     if (!prompt || busy) return;
-    setMessages((m) => [...m, { role: "user", text: prompt }]);
+    const next: AgentMessage[] = [...messages, { role: "user", text: prompt }];
+    setMessages(next);
     setInput("");
     setBusy(true);
     try {
-      const reply = await runAgent(prompt);
-      setMessages((m) => [...m, reply]);
+      // Try the server LLM route first. It returns ok:false (no API key, error,
+      // or rate limited) → fall back to the deterministic local agent so the
+      // demo always responds with something useful.
+      const history = next.map((m) => ({
+        role: m.role,
+        content: m.text
+      }));
+      let handled = false;
+      try {
+        const res = await fetch("/api/agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: history })
+        });
+        if (res.ok) {
+          const data = (await res.json()) as
+            | { ok: true; text: string; model: string }
+            | { ok: false; reason: string };
+          if (data.ok && data.text) {
+            setMessages((m) => [...m, { role: "assistant", text: data.text }]);
+            handled = true;
+          }
+        }
+      } catch {
+        // network or parse error — fall through to local
+      }
+      if (!handled) {
+        const reply = await runAgent(prompt);
+        setMessages((m) => [...m, reply]);
+      }
     } finally {
       setBusy(false);
     }

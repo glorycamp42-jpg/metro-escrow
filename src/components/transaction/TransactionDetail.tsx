@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   ArrowLeft, FileDown, Mail, Printer, Plus, Upload, MessageSquare,
-  RefreshCw, AlertTriangle, ShieldAlert, ShieldCheck, Phone, Mail as MailIcon,
+  RefreshCw, AlertTriangle, Phone, Mail as MailIcon,
   StickyNote, MessageCircle, CheckCircle2, Circle, Sparkles, X, CalendarDays, Bell
 } from "lucide-react";
 import { escrowToIcs, downloadIcs } from "@/lib/ics";
@@ -49,6 +49,7 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
   const [e, setE] = React.useState<Escrow>(initial);
   const [tab, setTab] = React.useState<TabKey>("overview");
   const [modal, setModal] = React.useState<"addParty" | "updateStatus" | "notify" | null>(null);
+  const [initialRole, setInitialRole] = React.useState<Party["role"] | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const toast = useToast();
   const meta = STATUS_META[e.status];
@@ -284,7 +285,15 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 lg:col-span-8 flex flex-col gap-4">
           {tab === "overview" && <OverviewTab e={e} />}
-          {tab === "parties" && <PartiesTab e={e} />}
+          {tab === "parties" && (
+            <PartiesTab
+              e={e}
+              onAddParty={(role) => {
+                setInitialRole(role);
+                setModal("addParty");
+              }}
+            />
+          )}
           {tab === "tasks" && <TasksTab e={e} />}
           {tab === "documents" && <DocumentsTab escrow={e} onApplied={refresh} />}
           {tab === "trust" && <SettlementPanel escrow={e} />}
@@ -323,7 +332,7 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
           <Card className="p-4">
             <p className="text-[13px] font-medium mb-3">Quick actions</p>
             <div className="flex flex-col gap-2">
-              <Button variant="secondary" className="justify-start" onClick={() => setModal("addParty")}>
+              <Button variant="secondary" className="justify-start" onClick={() => { setInitialRole(undefined); setModal("addParty"); }}>
                 <Plus size={13} /> Add party
               </Button>
               <Button variant="secondary" className="justify-start" onClick={handleUploadClick}>
@@ -374,7 +383,11 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
       />
 
       {modal === "addParty" && (
-        <AddPartyModal onClose={() => setModal(null)} onSubmit={handleAddPartySubmit} />
+        <AddPartyModal
+          initialRole={initialRole}
+          onClose={() => { setModal(null); setInitialRole(undefined); }}
+          onSubmit={(p) => { handleAddPartySubmit(p); setInitialRole(undefined); }}
+        />
       )}
       {modal === "updateStatus" && (
         <UpdateStatusModal current={e.status} onClose={() => setModal(null)} onSubmit={handleUpdateStatusSubmit} />
@@ -508,14 +521,19 @@ function OverviewTab({ e }: { e: Escrow }) {
   );
 }
 
-function PartiesTab({ e }: { e: Escrow }) {
-  const toast = useToast();
-  const groups: Array<{ title: string; roles: string[] }> = [
-    { title: "Buyer side", roles: ["buyer", "buyer_agent"] },
-    { title: "Seller side", roles: ["seller", "seller_agent"] },
-    { title: "Lender", roles: ["lender"] },
-    { title: "Title & escrow", roles: ["title"] },
-    { title: "HOA / tax", roles: ["hoa", "tax"] }
+function PartiesTab({
+  e,
+  onAddParty
+}: {
+  e: Escrow;
+  onAddParty: (role: Party["role"]) => void;
+}) {
+  const groups: Array<{ title: string; roles: Party["role"][]; defaultRole: Party["role"] }> = [
+    { title: "Buyer side", roles: ["buyer", "buyer_agent"], defaultRole: "buyer" },
+    { title: "Seller side", roles: ["seller", "seller_agent"], defaultRole: "seller" },
+    { title: "Lender", roles: ["lender"], defaultRole: "lender" },
+    { title: "Title & escrow", roles: ["title"], defaultRole: "title" },
+    { title: "HOA / tax", roles: ["hoa", "tax"], defaultRole: "hoa" }
   ];
   return (
     <div className="flex flex-col gap-4">
@@ -525,7 +543,7 @@ function PartiesTab({ e }: { e: Escrow }) {
           <Card key={g.title} className="p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[14px] font-medium">{g.title}</p>
-              <Button variant="ghost" size="sm" onClick={() => toast.push("Add " + g.title.toLowerCase() + " party form opened", "info")}>
+              <Button variant="ghost" size="sm" onClick={() => onAddParty(g.defaultRole)}>
                 <Plus size={13} /> Add
               </Button>
             </div>
@@ -957,84 +975,6 @@ function Stat({
   );
 }
 
-function WireTab({ e }: { e: Escrow }) {
-  const verified = e.wire.callbackVerified;
-  const risk = e.wire.riskScore;
-  return (
-    <div className="flex flex-col gap-4">
-      <div
-        className={
-          "rounded-lg p-5 border " +
-          (verified
-            ? "bg-emerald-50 border-emerald-200"
-            : "bg-red-50 border-red-200")
-        }
-      >
-        <div className="flex items-start gap-3">
-          {verified ? (
-            <ShieldCheck className="text-emerald-700 mt-0.5" size={22} />
-          ) : (
-            <ShieldAlert className="text-red-700 mt-0.5" size={22} />
-          )}
-          <div className="flex-1">
-            <p
-              className={
-                "text-[15px] font-medium " +
-                (verified ? "text-emerald-800" : "text-red-800")
-              }
-            >
-              {verified
-                ? "Wire instructions verified by callback"
-                : "WIRE INSTRUCTIONS NOT VERIFIED — DO NOT FUND"}
-            </p>
-            <p
-              className={
-                "text-[12px] mt-1 " +
-                (verified ? "text-emerald-700" : "text-red-700")
-              }
-            >
-              {verified
-                ? `Verified by ${e.wire.verifiedBy} on ${
-                    e.wire.verifiedAt
-                      ? new Date(e.wire.verifiedAt).toLocaleString("en-US")
-                      : "—"
-                  }. Risk score ${risk}/100.`
-                : `Risk score ${risk}/100. Call the lender directly using a number from your records — never the one on the email.`}
-            </p>
-          </div>
-          {!verified && (
-            <Button variant="primary" size="sm">
-              <Phone size={13} /> Verify by callback
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <Card className="p-5">
-        <p className="text-[14px] font-medium mb-3">Beneficiary bank</p>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-[14px]">
-          <Info label="Bank" value={e.wire.bank} />
-          <Info label="Beneficiary" value={e.wire.beneficiary} />
-          <Info label="Routing (ABA)" value={e.wire.routing} />
-          <Info label="Account" value={`••••${e.wire.accountLast4}`} />
-        </dl>
-      </Card>
-
-      <Card className="p-4">
-        <p className="text-[12px] font-medium text-ink-500 mb-1">
-          Anti-fraud reminders
-        </p>
-        <ul className="text-[13px] text-ink-700 list-disc pl-5 space-y-1">
-          <li>Always verify by callback to a known number — never trust an inbound email or fax.</li>
-          <li>Never accept last-minute changes to wire instructions without re-verifying.</li>
-          <li>Send wire-fraud warnings to all parties at file open.</li>
-          <li>Use Plaid or bank-to-bank verification when available.</li>
-        </ul>
-      </Card>
-    </div>
-  );
-}
-
 function CommsTab({ e }: { e: Escrow }) {
   const [comms, setComms] = React.useState<CommLog[]>(e.comms);
   const [body, setBody] = React.useState("");
@@ -1154,13 +1094,15 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function AddPartyModal({
   onClose,
-  onSubmit
+  onSubmit,
+  initialRole
 }: {
   onClose: () => void;
   onSubmit: (p: Party) => void;
+  initialRole?: Party["role"];
 }) {
   const [name, setName] = React.useState("");
-  const [role, setRole] = React.useState<Party["role"]>("buyer");
+  const [role, setRole] = React.useState<Party["role"]>(initialRole ?? "buyer");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [company, setCompany] = React.useState("");

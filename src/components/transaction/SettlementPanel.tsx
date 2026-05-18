@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { FileDown, RefreshCw } from "lucide-react";
+import { FileDown, RefreshCw, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { fmtMoney, type Escrow } from "@/lib/data/mock";
-import { readReceipts, METHOD_LABEL } from "@/lib/data/receipts";
+import { readReceipts, writeReceipts, METHOD_LABEL, type Receipt, type ReceiptMethod } from "@/lib/data/receipts";
 import { useToast } from "@/components/ui/Toast";
 import { logAudit } from "@/lib/data/audit";
 
@@ -156,8 +156,29 @@ export function SettlementPanel({ escrow: e }: { escrow: Escrow }) {
     logAudit({ who: "Jin Yu", role: "Officer", action: "Settlement exported", target: e.id, detail: "Mode: " + mode + " (text)" });
     toast.push("Settlement statement downloaded", "ok");
   }
+  const [showReceiptModal, setShowReceiptModal] = React.useState(false);
   function logReceipt() {
-    toast.push("Receipt entry form opened — coming in Phase 3", "info");
+    setShowReceiptModal(true);
+  }
+  function handleSaveReceipt(r: Omit<Receipt, "id" | "escrowId" | "receivedBy">) {
+    const full: Receipt = {
+      ...r,
+      id: "rc-" + Date.now() + "-" + Math.floor(Math.random() * 1000),
+      escrowId: e.id,
+      receivedBy: "Jin Yu"
+    };
+    const all = readReceipts();
+    writeReceipts([...all, full]);
+    setReceipts(readReceipts().filter((x) => x.escrowId === e.id));
+    setShowReceiptModal(false);
+    logAudit({
+      who: "Jin Yu",
+      role: "Officer",
+      action: "Receipt logged",
+      target: e.id,
+      detail: fmtMoney(full.amount) + " from " + full.from + " (" + METHOD_LABEL[full.method] + ")"
+    });
+    toast.push("Receipt of " + fmtMoney(full.amount) + " recorded", "ok");
   }
   const totalReceipts = receipts.reduce((s, r) => s + r.amount, 0);
 
@@ -262,6 +283,131 @@ export function SettlementPanel({ escrow: e }: { escrow: Escrow }) {
           </>
         )}
       </Card>
+
+      {showReceiptModal && (
+        <ReceiptModal onClose={() => setShowReceiptModal(false)} onSave={handleSaveReceipt} />
+      )}
+    </div>
+  );
+}
+
+function ReceiptModal({
+  onClose,
+  onSave
+}: {
+  onClose: () => void;
+  onSave: (r: Omit<Receipt, "id" | "escrowId" | "receivedBy">) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [amount, setAmount] = React.useState("");
+  const [from, setFrom] = React.useState("");
+  const [method, setMethod] = React.useState<ReceiptMethod>("wire");
+  const [reference, setReference] = React.useState("");
+  const [date, setDate] = React.useState(today);
+  const [notes, setNotes] = React.useState("");
+
+  function submit() {
+    const amt = parseFloat(amount.replace(/[$,]/g, ""));
+    if (!amt || amt <= 0 || !from.trim() || !reference.trim()) return;
+    onSave({
+      amount: Math.round(amt),
+      from: from.trim(),
+      method,
+      reference: reference.trim(),
+      receivedAt: new Date(date + "T00:00:00").toISOString(),
+      notes: notes.trim() || undefined
+    });
+  }
+
+  const valid =
+    !!from.trim() &&
+    !!reference.trim() &&
+    parseFloat(amount.replace(/[$,]/g, "")) > 0;
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink-800/40 p-4">
+      <div className="w-full max-w-md rounded-lg bg-cream-50 p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[16px] font-medium">Log a receipt</h2>
+          <button onClick={onClose} className="text-ink-400 hover:text-ink-800" aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="flex flex-col gap-3 text-[13px]">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-ink-500">Amount</span>
+              <input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="25,000"
+                inputMode="decimal"
+                className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-ink-500">Date received</span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+              />
+            </label>
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">From (payer name)</span>
+            <input
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              placeholder="e.g. John Buyer"
+              className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-ink-500">Method</span>
+              <select
+                value={method}
+                onChange={(e) => setMethod(e.target.value as ReceiptMethod)}
+                className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+              >
+                <option value="wire">Wire</option>
+                <option value="check">Check</option>
+                <option value="cashier_check">Cashier&apos;s check</option>
+                <option value="ach">ACH</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-ink-500">Reference #</span>
+              <input
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="FED-XXXX or CHK-####"
+                className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+              />
+            </label>
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">Notes (optional)</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="e.g. Initial EMD"
+              className="w-full text-[13px] rounded-md border border-cream-300 p-2 resize-none bg-white"
+            />
+          </label>
+        </div>
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" onClick={submit} disabled={!valid}>
+            Save receipt
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
