@@ -5,8 +5,10 @@ import Link from "next/link";
 import {
   ArrowLeft, FileDown, Mail, Printer, Plus, Upload, MessageSquare,
   RefreshCw, AlertTriangle, ShieldAlert, ShieldCheck, Phone, Mail as MailIcon,
-  StickyNote, MessageCircle, CheckCircle2, Circle, Sparkles, X
+  StickyNote, MessageCircle, CheckCircle2, Circle, Sparkles, X, CalendarDays
 } from "lucide-react";
+import { escrowToIcs, downloadIcs } from "@/lib/ics";
+import { appointments as APPOINTMENTS } from "@/lib/data/mock";
 import { WirePanel } from "@/components/wire/WirePanel";
 import { TitleCompliancePanel } from "@/components/transaction/TitleCompliancePanel";
 import { SettlementPanel } from "@/components/transaction/SettlementPanel";
@@ -108,6 +110,12 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
     quickAction("File summary downloaded", "Escrow file summary downloaded as .txt");
   }
 
+  function handleCalendarExport() {
+    const ics = escrowToIcs(e, APPOINTMENTS);
+    downloadIcs("escrow-" + e.id + ".ics", ics);
+    quickAction("Calendar exported", "Calendar (.ics) downloaded - open it to add to Google / Outlook / Apple Calendar");
+  }
+
   function handleEmail() {
     const recipients = e.parties.filter((p) => p.email).map((p) => p.email).join(",");
     const subject = encodeURIComponent("Escrow " + e.id + " - " + e.property.address);
@@ -198,6 +206,9 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
           </Button>
           <Button variant="secondary" size="sm" onClick={() => { quickAction("File printed", "Print dialog opened"); window.print(); }}>
             <Printer size={13} /> Print
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleCalendarExport} title="Download a .ics calendar file for this escrow (appointments + critical dates)">
+            <CalendarDays size={13} /> Calendar
           </Button>
           <Button variant="secondary" size="sm" onClick={handleEmail}>
             <Mail size={13} /> Email
