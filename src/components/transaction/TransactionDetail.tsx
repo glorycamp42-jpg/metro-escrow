@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, FileDown, Mail, Printer, Plus, Upload, MessageSquare,
   RefreshCw, AlertTriangle, ShieldAlert, ShieldCheck, Phone, Mail as MailIcon,
-  StickyNote, MessageCircle, CheckCircle2, Circle, Sparkles, X, CalendarDays
+  StickyNote, MessageCircle, CheckCircle2, Circle, Sparkles, X, CalendarDays, Bell
 } from "lucide-react";
 import { escrowToIcs, downloadIcs } from "@/lib/ics";
 import { appointments as APPOINTMENTS } from "@/lib/data/mock";
@@ -25,7 +25,8 @@ import {
 } from "@/lib/data/mock";
 import {
   addEscrowDocument, addEscrowParty, updateEscrowStatus,
-  findEscrow, getEscrowDocuments, allEscrows, type UserDocument
+  findEscrow, getEscrowDocuments, allEscrows, addPortalNotification,
+  type UserDocument, type PortalNotificationType
 } from "@/lib/data/userEscrows";
 
 type TabKey =
@@ -47,7 +48,7 @@ const TABS: { key: TabKey; label: string }[] = [
 export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
   const [e, setE] = React.useState<Escrow>(initial);
   const [tab, setTab] = React.useState<TabKey>("overview");
-  const [modal, setModal] = React.useState<"addParty" | "updateStatus" | null>(null);
+  const [modal, setModal] = React.useState<"addParty" | "updateStatus" | "notify" | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const toast = useToast();
   const meta = STATUS_META[e.status];
@@ -147,8 +148,13 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
       uploadedBy: "Jin Yu"
     };
     addEscrowDocument(e.id, doc);
+    addPortalNotification(e.id, {
+      type: "document",
+      title: "New document available",
+      body: f.name + " has been added to your escrow file. Open the portal to review it."
+    });
     refresh();
-    toast.push("Uploaded: " + f.name, "ok");
+    toast.push("Uploaded: " + f.name + " — client notified", "ok");
     logAudit({ who: "Jin Yu", role: "Officer", action: "Document uploaded", target: e.id, detail: f.name });
     if (fileInputRef.current) fileInputRef.current.value = "";
     setTab("documents");
@@ -164,9 +170,23 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
 
   function handleUpdateStatusSubmit(s: EscrowStatus) {
     updateEscrowStatus(e.id, s);
+    // Auto-notify client of status change
+    addPortalNotification(e.id, {
+      type: "milestone",
+      title: "Status updated to " + STATUS_META[s].label,
+      body: "Your escrow at " + e.property.address + " is now " + STATUS_META[s].label.toLowerCase() + "."
+    });
     refresh();
-    toast.push("Status changed to " + STATUS_META[s].label, "ok");
+    toast.push("Status changed to " + STATUS_META[s].label + " — client notified", "ok");
     logAudit({ who: "Jin Yu", role: "Officer", action: "Status updated", target: e.id, detail: STATUS_META[s].label });
+    setModal(null);
+  }
+
+  function handleNotifySubmit(type: PortalNotificationType, title: string, body: string) {
+    if (!title.trim() || !body.trim()) return;
+    addPortalNotification(e.id, { type, title: title.trim(), body: body.trim() });
+    toast.push("Client notified", "ok");
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Client notified", target: e.id, detail: title });
     setModal(null);
   }
 
@@ -315,6 +335,9 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
               <Button variant="secondary" className="justify-start" onClick={() => setModal("updateStatus")}>
                 <RefreshCw size={13} /> Update status
               </Button>
+              <Button variant="secondary" className="justify-start" onClick={() => setModal("notify")}>
+                <Bell size={13} /> Notify client
+              </Button>
             </div>
           </Card>
 
@@ -355,6 +378,14 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
       )}
       {modal === "updateStatus" && (
         <UpdateStatusModal current={e.status} onClose={() => setModal(null)} onSubmit={handleUpdateStatusSubmit} />
+      )}
+      {modal === "notify" && (
+        <NotifyClientModal
+          escrowId={e.id}
+          portalToken={e.portalToken}
+          onClose={() => setModal(null)}
+          onSubmit={handleNotifySubmit}
+        />
       )}
 
       {/* Print-only footer */}
@@ -1263,6 +1294,158 @@ function UpdateStatusModal({
         <div className="flex justify-end gap-2 mt-5">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button variant="primary" onClick={() => onSubmit(val)}>Apply</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------- Notify Client modal -------- */
+
+const NOTIFY_PRESETS: Array<{
+  type: PortalNotificationType;
+  label: string;
+  title: string;
+  body: string;
+}> = [
+  {
+    type: "action_required",
+    label: "Request a signature",
+    title: "Signature requested",
+    body: "Please review and sign the document we just sent. Tap the action below or check your email."
+  },
+  {
+    type: "action_required",
+    label: "Request proof of funds",
+    title: "Proof of funds needed",
+    body: "Please upload your most recent bank statement or wire confirmation so we can verify your EMD."
+  },
+  {
+    type: "milestone",
+    label: "Loan approved",
+    title: "Loan approved",
+    body: "Great news — your lender has cleared your loan. We're moving into pre-closing this week."
+  },
+  {
+    type: "document",
+    label: "New document available",
+    title: "Document available",
+    body: "A new document has been added to your file. Open the portal to review it."
+  },
+  {
+    type: "message",
+    label: "Personal message",
+    title: "",
+    body: ""
+  }
+];
+
+function NotifyClientModal({
+  escrowId,
+  portalToken,
+  onClose,
+  onSubmit
+}: {
+  escrowId: string;
+  portalToken: string;
+  onClose: () => void;
+  onSubmit: (type: PortalNotificationType, title: string, body: string) => void;
+}) {
+  const [presetIdx, setPresetIdx] = React.useState(0);
+  const preset = NOTIFY_PRESETS[presetIdx];
+  const [title, setTitle] = React.useState(preset.title);
+  const [body, setBody] = React.useState(preset.body);
+
+  function pickPreset(i: number) {
+    setPresetIdx(i);
+    setTitle(NOTIFY_PRESETS[i].title);
+    setBody(NOTIFY_PRESETS[i].body);
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink-800/40 p-4">
+      <div className="w-full max-w-lg rounded-lg bg-cream-50 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[16px] font-medium">Notify client</h2>
+          <button onClick={onClose} className="text-ink-400 hover:text-ink-800">
+            <X size={18} />
+          </button>
+        </div>
+
+        <p className="text-[12px] text-ink-500 mb-3">
+          Sent to the client portal for escrow {escrowId}. They&apos;ll see it next time they open
+          <code className="ml-1 text-[11px] bg-cream-200 px-1.5 py-0.5 rounded">/portal/{portalToken.slice(0, 12)}...</code>
+        </p>
+
+        <p className="text-[11px] uppercase tracking-tightish text-ink-400 font-medium mb-2">
+          Quick presets
+        </p>
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {NOTIFY_PRESETS.map((p, i) => (
+            <button
+              key={p.label}
+              onClick={() => pickPreset(i)}
+              className={
+                "text-[11px] font-medium px-2.5 py-1 rounded-full border " +
+                (i === presetIdx
+                  ? "border-hermes-500 bg-hermes-500 text-cream-50"
+                  : "border-cream-300 bg-white text-ink-500 hover:border-hermes-300")
+              }
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-3 text-[13px]">
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">Type</span>
+            <select
+              value={preset.type}
+              onChange={(ev) => {
+                const idx = NOTIFY_PRESETS.findIndex(
+                  (p) => p.type === (ev.target.value as PortalNotificationType)
+                );
+                if (idx >= 0) pickPreset(idx);
+              }}
+              className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+            >
+              <option value="milestone">Milestone</option>
+              <option value="action_required">Action required</option>
+              <option value="message">Message</option>
+              <option value="document">Document</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">Title</span>
+            <input
+              value={title}
+              onChange={(ev) => setTitle(ev.target.value)}
+              placeholder="What's this about?"
+              className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">Body</span>
+            <textarea
+              value={body}
+              onChange={(ev) => setBody(ev.target.value)}
+              placeholder="Tell the client what they need to know or do."
+              rows={4}
+              className="px-2 py-1.5 rounded-md border border-cream-300 bg-white resize-y"
+            />
+          </label>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            onClick={() => onSubmit(preset.type, title, body)}
+            disabled={!title.trim() || !body.trim()}
+          >
+            <Bell size={13} /> Send notification
+          </Button>
         </div>
       </div>
     </div>

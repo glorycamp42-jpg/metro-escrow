@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { CheckCircle2, Clock, ArrowRight, Upload, FileSignature, MessageSquare, MapPin } from "lucide-react";
 import { escrows, fmtMoney } from "@/lib/data/mock";
+import { PortalNotifications } from "@/components/portal/PortalNotifications";
 
 const STEP_LABELS = [
   "Escrow opened",
@@ -70,6 +70,8 @@ export default async function ClientPortalPage({
           <Stat label="Progress" value={`${pct}%`} accent />
         </div>
       </header>
+
+      <PortalNotifications escrowId={e.id} />
 
       <section className="mt-6">
         <p className="text-[13px] font-medium mb-3 text-ink-700">

@@ -25,11 +25,28 @@ export type UserDocument = {
   extracted?: Record<string, unknown>;
 };
 
+export type PortalNotificationType =
+  | "milestone"
+  | "action_required"
+  | "message"
+  | "document";
+
+export type PortalNotification = {
+  id: string;
+  createdAt: string;
+  type: PortalNotificationType;
+  title: string;
+  body: string;
+  read: boolean;
+  from: string;
+};
+
 export type EscrowPatch = {
   status?: EscrowStatus;
   stage?: EscrowStage;
   parties?: Party[];
   documents?: UserDocument[];
+  notifications?: PortalNotification[];
   type?: Escrow["type"];
   price?: number;
   closingDate?: string;
@@ -174,6 +191,58 @@ export function addEscrowParty(id: string, party: Party, currentParties: Party[]
 export function updateEscrowStatus(id: string, status: EscrowStatus) {
   const all = readPatches();
   all[id] = { ...all[id], status };
+  writePatches(all);
+}
+
+// ---------- portal notifications ----------
+
+export function getPortalNotifications(escrowId: string): PortalNotification[] {
+  if (typeof window === "undefined") return [];
+  const list = readPatches()[escrowId]?.notifications ?? [];
+  return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function getUnreadCount(escrowId: string): number {
+  if (typeof window === "undefined") return 0;
+  return (readPatches()[escrowId]?.notifications ?? []).filter((n) => !n.read).length;
+}
+
+export function addPortalNotification(
+  escrowId: string,
+  notif: { type: PortalNotificationType; title: string; body: string; from?: string }
+) {
+  const all = readPatches();
+  const existing = all[escrowId]?.notifications ?? [];
+  const full: PortalNotification = {
+    id: "notif-" + Date.now() + "-" + Math.floor(Math.random() * 1000),
+    createdAt: new Date().toISOString(),
+    read: false,
+    from: notif.from ?? "Jin Yu",
+    type: notif.type,
+    title: notif.title,
+    body: notif.body
+  };
+  all[escrowId] = { ...all[escrowId], notifications: [...existing, full] };
+  writePatches(all);
+}
+
+export function markNotificationRead(escrowId: string, notifId: string) {
+  const all = readPatches();
+  const notifs = all[escrowId]?.notifications ?? [];
+  all[escrowId] = {
+    ...all[escrowId],
+    notifications: notifs.map((n) => (n.id === notifId ? { ...n, read: true } : n))
+  };
+  writePatches(all);
+}
+
+export function markAllNotificationsRead(escrowId: string) {
+  const all = readPatches();
+  const notifs = all[escrowId]?.notifications ?? [];
+  all[escrowId] = {
+    ...all[escrowId],
+    notifications: notifs.map((n) => ({ ...n, read: true }))
+  };
   writePatches(all);
 }
 
