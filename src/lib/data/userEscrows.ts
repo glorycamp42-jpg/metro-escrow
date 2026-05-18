@@ -42,3 +42,32 @@ export function findEscrow(id: string): Escrow | undefined {
   if (seed) return seed;
   return readUserEscrows().find((e) => e.id === id);
 }
+
+/** Serialize all user escrows as pretty JSON for a backup download. */
+export function exportUserEscrows(): string {
+  return JSON.stringify(readUserEscrows(), null, 2);
+}
+
+/** Merge escrows from a backup JSON. De-duped by id (import overrides). */
+export function importUserEscrows(jsonText: string): { added: number; total: number } {
+  let incoming: Escrow[];
+  try {
+    const parsed = JSON.parse(jsonText);
+    if (!Array.isArray(parsed)) throw new Error("not an array");
+    incoming = parsed as Escrow[];
+  } catch {
+    throw new Error("Backup file is not valid JSON");
+  }
+  const existing = readUserEscrows();
+  const byId = new Map<string, Escrow>();
+  for (const e of existing) byId.set(e.id, e);
+  let added = 0;
+  for (const e of incoming) {
+    if (!e || typeof e.id !== "string") continue;
+    if (!byId.has(e.id)) added++;
+    byId.set(e.id, e);
+  }
+  const merged = Array.from(byId.values());
+  writeUserEscrows(merged);
+  return { added, total: merged.length };
+}

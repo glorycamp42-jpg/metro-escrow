@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Search, Plus, Filter } from "lucide-react";
+import { Search, Plus, Filter, Download, Upload } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { fmtMoney, STATUS_META, type Escrow } from "@/lib/data/mock";
-import { allEscrows } from "@/lib/data/userEscrows";
+import { allEscrows, exportUserEscrows, importUserEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
 
 export default function TransactionsPage() {
@@ -17,6 +17,49 @@ export default function TransactionsPage() {
   React.useEffect(() => {
     setEscrows(allEscrows());
   }, []);
+
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  function handleExport() {
+    const json = exportUserEscrows();
+    if (!json || json === "[]") {
+      toast.push("No user-created escrows yet — nothing to back up", "info");
+      return;
+    }
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const today = new Date().toISOString().slice(0, 10);
+    a.download = "metro-escrow-backup-" + today + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.push("Backup file downloaded", "ok");
+  }
+
+  function handleImportClick() {
+    fileRef.current?.click();
+  }
+
+  async function handleImportFile(ev: React.ChangeEvent<HTMLInputElement>) {
+    const f = ev.target.files?.[0];
+    if (!f) return;
+    try {
+      const text = await f.text();
+      const result = importUserEscrows(text);
+      setEscrows(allEscrows());
+      const noun = result.added === 1 ? "escrow" : "escrows";
+      toast.push(result.added + " new " + noun + " imported (total " + result.total + ")", "ok");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.push("Import failed: " + msg, "warn");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
   const filtered = escrows.filter((e) => {
     const t = (q ?? "").toLowerCase();
     if (!t) return true;
@@ -36,12 +79,29 @@ export default function TransactionsPage() {
             Manage every escrow your office is running.
           </p>
         </div>
-        <Link href="/transactions/new">
-          <Button variant="primary">
-            <Plus size={14} />
-            New escrow
+        <div className="flex gap-2 items-center">
+          <input
+            type="file"
+            accept="application/json,.json"
+            ref={fileRef}
+            onChange={handleImportFile}
+            className="hidden"
+          />
+          <Button variant="secondary" onClick={handleExport} title="Download a JSON backup of your escrows">
+            <Download size={14} />
+            Export
           </Button>
-        </Link>
+          <Button variant="secondary" onClick={handleImportClick} title="Restore escrows from a backup JSON file">
+            <Upload size={14} />
+            Import
+          </Button>
+          <Link href="/transactions/new">
+            <Button variant="primary">
+              <Plus size={14} />
+              New escrow
+            </Button>
+          </Link>
+        </div>
       </header>
 
       <Card className="p-3 flex items-center gap-2">
