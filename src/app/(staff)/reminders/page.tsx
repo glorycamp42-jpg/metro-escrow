@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Mail, MessageCircle, Bell, CheckCircle2, Sparkles } from "lucide-react";
 import { logAudit } from "@/lib/data/audit";
+import { readReminderState, writeReminderState } from "@/lib/data/reminders";
 import { useToast } from "@/components/ui/Toast";
 
 type Rule = {
@@ -37,10 +38,20 @@ export default function RemindersPage() {
   const toast = useToast();
   const [rules, setRules] = React.useState<Rule[]>(DEFAULTS);
 
+  React.useEffect(() => {
+    const saved = readReminderState();
+    if (Object.keys(saved).length > 0) {
+      setRules((rs) => rs.map((r) => (r.id in saved ? { ...r, enabled: saved[r.id] } : r)));
+    }
+  }, []);
+
   function toggle(id: string) {
     setRules((rs) => {
       const next = rs.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r));
       const just = next.find((r) => r.id === id);
+      const state: Record<string, boolean> = {};
+      for (const r of next) state[r.id] = r.enabled;
+      writeReminderState(state);
       logAudit({
         who: "Jin Yu",
         role: "Officer",

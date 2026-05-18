@@ -12,7 +12,7 @@
  * Tool calls go through the same shape (`AgentAction[]`) the panel renders today.
  */
 
-import { escrows } from "./data/mock";
+import { allEscrows } from "./data/userEscrows";
 
 export type AgentAction =
   | { kind: "open_escrow"; summary: string }
@@ -62,6 +62,7 @@ export async function runAgent(prompt: string): Promise<AgentMessage> {
   }
 
   if (lower.includes("summarize") || lower.includes("summary")) {
+    const escrows = allEscrows();
     const open = escrows.filter((e) => e.status !== "closed").length;
     const risks = escrows.flatMap((e) => e.risks).length;
     const closingSoon = escrows.filter((e) => e.status === "pending_closing").length;
@@ -69,7 +70,7 @@ export async function runAgent(prompt: string): Promise<AgentMessage> {
       role: "assistant",
       text: `Today in three lines:
 • ${open} active escrows, ${closingSoon} closing within the week.
-• ${risks} open risk flags — top one: ${escrows[0].risks[0]?.message ?? "no critical flags"}.
+• ${risks} open risk flags — top one: ${escrows[0]?.risks[0]?.message ?? "no critical flags"}.
 • 4 client portal updates pending your review.`
     };
   }
@@ -85,6 +86,7 @@ export async function runAgent(prompt: string): Promise<AgentMessage> {
   }
 
   if (lower.includes("risk") || lower.includes("flag")) {
+    const escrows = allEscrows();
     const items = escrows.flatMap((e) =>
       e.risks.map((r) => ({ id: e.id, msg: r.message }))
     );

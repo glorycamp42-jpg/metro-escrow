@@ -7,12 +7,25 @@ import { Button } from "@/components/ui/Button";
 import {
   Calendar, Mail, Phone, MessageCircle, FileSignature, Package
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { appointments, type Escrow } from "@/lib/data/mock";
 import { allEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
+import { logAudit } from "@/lib/data/audit";
 
 export function AssistantHome() {
   const toast = useToast();
+  const router = useRouter();
+
+  function navAction(label: string, href: string) {
+    logAudit({ who: "Jin Yu", role: "Assistant", action: "Quick action: " + label, target: "dashboard", detail: "Navigated to " + href });
+    toast.push(label, "info");
+    if (href.startsWith("tel:")) {
+      window.location.href = href;
+    } else {
+      router.push(href);
+    }
+  }
   const [escrows, setEscrows] = React.useState<Escrow[]>([]);
   React.useEffect(() => {
     setEscrows(allEscrows());
@@ -81,7 +94,7 @@ export function AssistantHome() {
                     })}
                   </p>
                 </div>
-                <Button size="sm" variant="secondary" onClick={() => toast.push("Appointment confirmed - reminder queued", "ok")}>Confirm</Button>
+                <Button size="sm" variant="secondary" onClick={() => navAction("Opening calendar to confirm appointment", "/calendar")}>Confirm</Button>
               </li>
             ))}
           </ul>
@@ -92,19 +105,19 @@ export function AssistantHome() {
         <Card className="p-4">
           <p className="text-[13px] font-medium mb-3">Quick actions</p>
           <div className="flex flex-col gap-2">
-            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Signing appointment scheduler opened", "ok")}>
+            <Button variant="secondary" className="justify-start" onClick={() => navAction("Opening calendar to schedule signing", "/calendar")}>
               <FileSignature size={13} /> Set up signing
             </Button>
             <Button variant="secondary" className="justify-start" onClick={() => { toast.push("Closing packet sent to print queue", "ok"); window.print(); }}>
               <Package size={13} /> Print closing packet
             </Button>
-            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Dialing party for confirmation...", "info")}>
+            <Button variant="secondary" className="justify-start" onClick={() => navAction("Dialing party...", "tel:+15551234567")}>
               <Phone size={13} /> Call to confirm
             </Button>
-            <Button variant="secondary" className="justify-start" onClick={() => toast.push("SMS reminder sent", "ok")}>
+            <Button variant="secondary" className="justify-start" onClick={() => navAction("Opening reminders", "/reminders")}>
               <MessageCircle size={13} /> Send SMS reminder
             </Button>
-            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Welcome packet emailed", "ok")}>
+            <Button variant="secondary" className="justify-start" onClick={() => navAction("Opening messages to send welcome packet", "/messages")}>
               <Mail size={13} /> Email welcome packet
             </Button>
           </div>

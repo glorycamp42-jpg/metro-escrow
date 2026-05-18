@@ -6,12 +6,21 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ShieldCheck, AlertTriangle, ArrowUpRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { fmtMoney, STAGE_META, type Escrow } from "@/lib/data/mock";
 import { allEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
+import { logAudit } from "@/lib/data/audit";
 
 export function SeniorHome() {
   const toast = useToast();
+  const router = useRouter();
+
+  function review(escrowId: string) {
+    logAudit({ who: "Jin Yu", role: "Senior", action: "Review opened", target: escrowId, detail: "From dashboard quick action" });
+    toast.push("Opening queue for " + escrowId, "info");
+    router.push("/queue");
+  }
   const [escrows, setEscrows] = React.useState<Escrow[]>([]);
   React.useEffect(() => {
     setEscrows(allEscrows());
@@ -65,7 +74,7 @@ export function SeniorHome() {
                     </span>
                   </div>
                 </div>
-                <Button size="sm" variant="primary" onClick={() => toast.push("Review opened for " + e.id, "info")}>Review</Button>
+                <Button size="sm" variant="primary" onClick={() => review(e.id)}>Review</Button>
               </li>
             ))}
           </ul>

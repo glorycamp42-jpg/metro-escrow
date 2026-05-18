@@ -5,12 +5,25 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle2, Circle, FileText, Mail, Phone } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { type Escrow } from "@/lib/data/mock";
 import { allEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
+import { logAudit } from "@/lib/data/audit";
 
 export function ProcessorHome() {
   const toast = useToast();
+  const router = useRouter();
+
+  function navAction(label: string, href: string) {
+    logAudit({ who: "Jin Yu", role: "Processor", action: "Quick action: " + label, target: "dashboard", detail: "Navigated to " + href });
+    toast.push(label, "info");
+    if (href.startsWith("tel:")) {
+      window.location.href = href;
+    } else {
+      router.push(href);
+    }
+  }
   const [escrows, setEscrows] = React.useState<Escrow[]>([]);
   React.useEffect(() => {
     setEscrows(allEscrows());
@@ -97,16 +110,16 @@ export function ProcessorHome() {
         <Card className="p-4">
           <p className="text-[13px] font-medium mb-3">Quick send</p>
           <div className="flex flex-col gap-2">
-            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Title order email drafted from template", "ok")}>
+            <Button variant="secondary" className="justify-start" onClick={() => navAction("Opening title order template", "/templates")}>
               <Mail size={13} /> Order title (template)
             </Button>
-            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Payoff demand request drafted to existing lender", "ok")}>
+            <Button variant="secondary" className="justify-start" onClick={() => navAction("Opening payoff demand template", "/templates")}>
               <Mail size={13} /> Request payoff demand
             </Button>
-            <Button variant="secondary" className="justify-start" onClick={() => toast.push("HOA documents ordered (7-day rule)", "ok")}>
+            <Button variant="secondary" className="justify-start" onClick={() => navAction("Opening HOA docs template", "/templates")}>
               <Mail size={13} /> Order HOA documents
             </Button>
-            <Button variant="secondary" className="justify-start" onClick={() => toast.push("Dialing lender contact...", "info")}>
+            <Button variant="secondary" className="justify-start" onClick={() => navAction("Dialing lender...", "tel:+15551234567")}>
               <Phone size={13} /> Call lender
             </Button>
           </div>

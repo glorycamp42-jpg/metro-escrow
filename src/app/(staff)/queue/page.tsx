@@ -9,6 +9,27 @@ import { ROLES, type Role } from "@/lib/roles";
 import { type Escrow, type Task } from "@/lib/data/mock";
 import { allEscrows } from "@/lib/data/userEscrows";
 
+const QUEUE_KEY = "metro-escrow:queue-state";
+
+function readQueueState(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(QUEUE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeQueueState(s: Record<string, boolean>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(QUEUE_KEY, JSON.stringify(s));
+  } catch {
+    // ignore
+  }
+}
+
 const ROLE_TO_OWNER: Record<Role, "officer" | "processor" | "assistant" | "ai" | null> = {
   officer: "officer",
   senior: "officer", // senior reviews officer-owned items
@@ -27,6 +48,7 @@ export default function QueuePage() {
 
   React.useEffect(() => {
     setEscrows(allEscrows());
+    setDoneIds(readQueueState());
   }, []);
 
   type Row = Task & { escrowId: string; address: string };
@@ -46,7 +68,11 @@ export default function QueuePage() {
   const done = rows.length - open.length;
 
   function toggle(id: string) {
-    setDoneIds((d) => ({ ...d, [id]: !d[id] }));
+    setDoneIds((d) => {
+      const next = { ...d, [id]: !d[id] };
+      writeQueueState(next);
+      return next;
+    });
   }
 
   return (

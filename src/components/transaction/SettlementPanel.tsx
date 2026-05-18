@@ -112,9 +112,49 @@ export function SettlementPanel({ escrow: e }: { escrow: Escrow }) {
     toast.push("Settlement recalculated against latest figures", "ok");
   }
   function exportPdf() {
-    logAudit({ who: "Jin Yu", role: "Officer", action: "Settlement PDF exported", target: e.id, detail: "Mode: " + mode });
-    toast.push("Settlement PDF ready — print dialog opening", "ok");
-    window.print();
+    const lines: string[] = [];
+    lines.push("Settlement Statement");
+    lines.push("====================");
+    lines.push("File: " + e.id);
+    lines.push("Property: " + e.property.address + ", " + e.property.city + ", " + e.property.state + " " + e.property.zip);
+    lines.push("Mode: " + (mode === "estimated" ? "Estimated (at file open)" : "Final (at closing)"));
+    lines.push("Closing date: " + new Date(e.closingDate).toLocaleDateString("en-US"));
+    lines.push("Sale price: " + fmtMoney(e.settlement.salePrice));
+    lines.push("");
+    lines.push("BUYER SIDE");
+    lines.push("----------");
+    for (const r of rows.buyerSide) {
+      const sign = r.amount < 0 ? "-" : " ";
+      lines.push(sign + fmtMoney(Math.abs(r.amount)).padEnd(14) + " " + r.label + (r.note ? "  (" + r.note + ")" : ""));
+    }
+    lines.push("");
+    lines.push("Cash to close: " + fmtMoney(Math.abs(rows.buyerCash)));
+    lines.push("");
+    lines.push("SELLER SIDE");
+    lines.push("-----------");
+    for (const r of rows.sellerSide) {
+      const sign = r.amount < 0 ? "-" : " ";
+      lines.push(sign + fmtMoney(Math.abs(r.amount)).padEnd(14) + " " + r.label + (r.note ? "  (" + r.note + ")" : ""));
+    }
+    lines.push("");
+    lines.push("Net to seller: " + fmtMoney(Math.abs(rows.sellerNet)));
+    lines.push("");
+    lines.push("Total commission: " + fmtMoney(rows.totalCommission));
+    lines.push("");
+    lines.push("Generated " + new Date().toLocaleString("en-US"));
+
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "settlement-" + e.id + ".txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Settlement exported", target: e.id, detail: "Mode: " + mode + " (text)" });
+    toast.push("Settlement statement downloaded", "ok");
   }
   function logReceipt() {
     toast.push("Receipt entry form opened — coming in Phase 3", "info");

@@ -6,6 +6,9 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { WireCallbackModal } from "./WireCallbackModal";
 import type { WireInstructions } from "@/lib/data/mock";
+import { patchEscrow } from "@/lib/data/userEscrows";
+import { logAudit } from "@/lib/data/audit";
+import { useToast } from "@/components/ui/Toast";
 
 export function WirePanel({
   escrowId,
@@ -14,6 +17,7 @@ export function WirePanel({
   escrowId: string;
   initial: WireInstructions;
 }) {
+  const toast = useToast();
   const [wire, setWire] = React.useState(initial);
   const [open, setOpen] = React.useState(false);
   const verified = wire.callbackVerified;
@@ -107,15 +111,25 @@ export function WirePanel({
           bank={wire.bank}
           accountLast4={wire.accountLast4}
           onClose={() => setOpen(false)}
-          onVerified={() =>
-            setWire((w) => ({
-              ...w,
+          onVerified={() => {
+            const update: Partial<WireInstructions> = {
               callbackVerified: true,
               verifiedBy: "Jin Yu",
               verifiedAt: new Date().toISOString(),
-              riskScore: Math.min(w.riskScore, 8)
-            }))
-          }
+              riskScore: Math.min(wire.riskScore, 8)
+            };
+            setWire((w) => ({ ...w, ...update }));
+            patchEscrow(escrowId, { wire: update });
+            logAudit({
+              who: "Jin Yu",
+              role: "Officer",
+              action: "Wire instructions verified",
+              target: escrowId,
+              detail:
+                "Bank " + wire.bank + ", account ..." + wire.accountLast4
+            });
+            toast.push("Wire verified - safe to fund", "ok");
+          }}
         />
       )}
     </div>

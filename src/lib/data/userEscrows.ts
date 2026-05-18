@@ -7,7 +7,8 @@ import {
   type EscrowStage,
   type Party,
   type CriticalDates,
-  type EstimatedSettlement
+  type EstimatedSettlement,
+  type WireInstructions
 } from "./mock";
 
 const KEY = "metro-escrow:user-escrows";
@@ -53,6 +54,7 @@ export type EscrowPatch = {
   property?: Partial<Escrow["property"]>;
   critical?: Partial<CriticalDates>;
   settlement?: Partial<EstimatedSettlement>;
+  wire?: Partial<WireInstructions>;
 };
 
 // ---------- user-created escrows ----------
@@ -117,7 +119,8 @@ function applyPatch(e: Escrow): Escrow {
     closingDate: p.closingDate ?? e.closingDate,
     property: p.property ? { ...e.property, ...p.property } : e.property,
     critical: p.critical ? { ...e.critical, ...p.critical } : e.critical,
-    settlement: p.settlement ? { ...e.settlement, ...p.settlement } : e.settlement
+    settlement: p.settlement ? { ...e.settlement, ...p.settlement } : e.settlement,
+    wire: p.wire ? { ...e.wire, ...p.wire } : e.wire
   };
 }
 
@@ -134,6 +137,9 @@ export function patchEscrow(id: string, patch: EscrowPatch) {
   }
   if (patch.settlement) {
     merged.settlement = { ...(existing.settlement ?? {}), ...patch.settlement };
+  }
+  if (patch.wire) {
+    merged.wire = { ...(existing.wire ?? {}), ...patch.wire };
   }
   all[id] = merged;
   writePatches(all);

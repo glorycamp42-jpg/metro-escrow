@@ -6,19 +6,57 @@ import { Search, Plus, Filter, Download, Upload } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { fmtMoney, STATUS_META, type Escrow } from "@/lib/data/mock";
+import { fmtMoney, STATUS_META, type Escrow, type EscrowStatus } from "@/lib/data/mock";
 import { allEscrows, exportUserEscrows, importUserEscrows } from "@/lib/data/userEscrows";
 import { useToast } from "@/components/ui/Toast";
+
+type StatusFilter = "all" | EscrowStatus;
+type TypeFilter = "all" | Escrow["type"];
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "draft", label: "Draft" },
+  { value: "opened", label: "Opened" },
+  { value: "in_progress", label: "In progress" },
+  { value: "pending_closing", label: "Pending closing" },
+  { value: "closed", label: "Closed" },
+  { value: "cancelled", label: "Cancelled" }
+];
+
+const TYPE_OPTIONS: { value: TypeFilter; label: string }[] = [
+  { value: "all", label: "All types" },
+  { value: "Residential Resale", label: "Residential" },
+  { value: "Commercial", label: "Commercial" },
+  { value: "1031 Exchange", label: "1031" },
+  { value: "Investment Property", label: "Investment" },
+  { value: "REO", label: "REO" },
+  { value: "Refinance", label: "Refinance" }
+];
 
 export default function TransactionsPage() {
   const toast = useToast();
   const [q, setQ] = React.useState("");
   const [escrows, setEscrows] = React.useState<Escrow[]>([]);
+  const [filterOpen, setFilterOpen] = React.useState(false);
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
+  const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all");
+  const [riskOnly, setRiskOnly] = React.useState(false);
+
   React.useEffect(() => {
     setEscrows(allEscrows());
   }, []);
 
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const filterRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function onClick(ev: MouseEvent) {
+      if (!filterRef.current) return;
+      if (!filterRef.current.contains(ev.target as Node)) setFilterOpen(false);
+    }
+    if (filterOpen) document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [filterOpen]);
 
   function handleExport() {
     const json = exportUserEscrows();
@@ -62,13 +100,29 @@ export default function TransactionsPage() {
 
   const filtered = escrows.filter((e) => {
     const t = (q ?? "").toLowerCase();
-    if (!t) return true;
-    return (
-      e.id.toLowerCase().includes(t) ||
-      e.property.address.toLowerCase().includes(t) ||
-      e.property.city.toLowerCase().includes(t)
-    );
+    if (t) {
+      const matchesText =
+        e.id.toLowerCase().includes(t) ||
+        e.property.address.toLowerCase().includes(t) ||
+        e.property.city.toLowerCase().includes(t);
+      if (!matchesText) return false;
+    }
+    if (statusFilter !== "all" && e.status !== statusFilter) return false;
+    if (typeFilter !== "all" && e.type !== typeFilter) return false;
+    if (riskOnly && e.risks.length === 0) return false;
+    return true;
   });
+
+  const activeFilterCount =
+    (statusFilter !== "all" ? 1 : 0) +
+    (typeFilter !== "all" ? 1 : 0) +
+    (riskOnly ? 1 : 0);
+
+  function clearFilters() {
+    setStatusFilter("all");
+    setTypeFilter("all");
+    setRiskOnly(false);
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -114,10 +168,64 @@ export default function TransactionsPage() {
             className="flex-1 bg-transparent outline-none text-[13px] placeholder:text-ink-400"
           />
         </div>
-        <Button variant="secondary" onClick={() => toast.push("Filter panel coming - use search above for now", "info")}>
-          <Filter size={14} />
-          Filter
-        </Button>
+        <div className="relative" ref={filterRef}>
+          <Button variant="secondary" onClick={() => setFilterOpen((o) => !o)}>
+            <Filter size={14} />
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-hermes-500 text-white text-[10px] font-medium">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
+          {filterOpen && (
+            <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-cream-300 rounded-md shadow-card z-30 p-4 flex flex-col gap-3">
+              <div>
+                <p className="text-[11px] font-medium text-ink-500 uppercase tracking-tightish mb-1.5">Status</p>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                  className="h-9 w-full rounded-md border border-cream-300 bg-white px-2 text-[13px]"
+                >
+                  {STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium text-ink-500 uppercase tracking-tightish mb-1.5">Type</p>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+                  className="h-9 w-full rounded-md border border-cream-300 bg-white px-2 text-[13px]"
+                >
+                  {TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-[13px] text-ink-700">
+                <input
+                  type="checkbox"
+                  checked={riskOnly}
+                  onChange={(e) => setRiskOnly(e.target.checked)}
+                />
+                Has risk flags
+              </label>
+              <div className="flex items-center justify-between pt-2 border-t border-cream-200">
+                <button
+                  className="text-[12px] text-ink-500 hover:text-ink-800"
+                  onClick={clearFilters}
+                >
+                  Clear all
+                </button>
+                <Button size="sm" variant="primary" onClick={() => setFilterOpen(false)}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card className="p-0 overflow-hidden">
