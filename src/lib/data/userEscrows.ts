@@ -1,11 +1,33 @@
-/** User-created escrows persisted to localStorage. */
+/** User-created escrows + per-escrow patches persisted to localStorage. */
 
 import {
   escrows as SEED_ESCROWS,
-  type Escrow
+  type Escrow,
+  type EscrowStatus,
+  type EscrowStage,
+  type Party
 } from "./mock";
 
 const KEY = "metro-escrow:user-escrows";
+const PATCHES_KEY = "metro-escrow:patches";
+
+export type UserDocument = {
+  id: string;
+  name: string;
+  size: number;
+  mediaType: string;
+  uploadedAt: string;
+  uploadedBy: string;
+};
+
+type EscrowPatch = {
+  status?: EscrowStatus;
+  stage?: EscrowStage;
+  parties?: Party[];
+  documents?: UserDocument[];
+};
+
+// ---------- user-created escrows ----------
 
 export function readUserEscrows(): Escrow[] {
   if (typeof window === "undefined") return [];
@@ -32,16 +54,79 @@ export function addUserEscrow(e: Escrow) {
   writeUserEscrows([...list, e]);
 }
 
-/** Merged list (seed + user-created) used by list and lookup. */
+// ---------- patches (overrides on top of seed/user escrows) ----------
+
+function readPatches(): Record<string, EscrowPatch> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(PATCHES_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, EscrowPatch>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePatches(p: Record<string, EscrowPatch>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PATCHES_KEY, JSON.stringify(p));
+  } catch {
+    // ignore
+  }
+}
+
+function applyPatch(e: Escrow): Escrow {
+  if (typeof window === "undefined") return e;
+  const p = readPatches()[e.id];
+  if (!p) return e;
+  return {
+    ...e,
+    status: p.status ?? e.status,
+    stage: p.stage ?? e.stage,
+    parties: p.parties ?? e.parties
+  };
+}
+
+export function getEscrowDocuments(id: string): UserDocument[] {
+  if (typeof window === "undefined") return [];
+  return readPatches()[id]?.documents ?? [];
+}
+
+export function addEscrowDocument(id: string, doc: UserDocument) {
+  const all = readPatches();
+  const existing = all[id]?.documents ?? [];
+  all[id] = { ...all[id], documents: [...existing, doc] };
+  writePatches(all);
+}
+
+export function addEscrowParty(id: string, party: Party, currentParties: Party[]) {
+  const all = readPatches();
+  const merged = [...currentParties, party];
+  all[id] = { ...all[id], parties: merged };
+  writePatches(all);
+}
+
+export function updateEscrowStatus(id: string, status: EscrowStatus) {
+  const all = readPatches();
+  all[id] = { ...all[id], status };
+  writePatches(all);
+}
+
+// ---------- combined lookups ----------
+
+/** Merged list (seed + user-created) with patches applied. */
 export function allEscrows(): Escrow[] {
-  return [...SEED_ESCROWS, ...readUserEscrows()];
+  return [...SEED_ESCROWS, ...readUserEscrows()].map(applyPatch);
 }
 
 export function findEscrow(id: string): Escrow | undefined {
   const seed = SEED_ESCROWS.find((e) => e.id === id);
-  if (seed) return seed;
-  return readUserEscrows().find((e) => e.id === id);
+  if (seed) return applyPatch(seed);
+  const user = readUserEscrows().find((e) => e.id === id);
+  return user ? applyPatch(user) : undefined;
 }
+
+// ---------- backup / restore ----------
 
 /** Serialize all user escrows as pretty JSON for a backup download. */
 export function exportUserEscrows(): string {

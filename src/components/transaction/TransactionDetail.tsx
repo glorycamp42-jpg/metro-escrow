@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, FileDown, Mail, Printer, Plus, Upload, MessageSquare,
   RefreshCw, AlertTriangle, ShieldAlert, ShieldCheck, Phone, Mail as MailIcon,
-  StickyNote, MessageCircle, CheckCircle2, Circle, Sparkles
+  StickyNote, MessageCircle, CheckCircle2, Circle, Sparkles, X
 } from "lucide-react";
 import { WirePanel } from "@/components/wire/WirePanel";
 import { TitleCompliancePanel } from "@/components/transaction/TitleCompliancePanel";
@@ -17,8 +17,12 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import {
   daysUntil, fmtMoney, STATUS_META, STAGE_META,
-  type Escrow, type Task, type CommLog
+  type Escrow, type Task, type CommLog, type EscrowStatus, type Party
 } from "@/lib/data/mock";
+import {
+  addEscrowDocument, addEscrowParty, updateEscrowStatus,
+  findEscrow, getEscrowDocuments, type UserDocument
+} from "@/lib/data/userEscrows";
 
 type TabKey =
   | "overview" | "parties" | "documents" | "trust"
@@ -36,15 +40,124 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "timeline", label: "Timeline" }
 ];
 
-export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
+export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
+  const [e, setE] = React.useState<Escrow>(initial);
   const [tab, setTab] = React.useState<TabKey>("overview");
+  const [modal, setModal] = React.useState<"addParty" | "updateStatus" | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const toast = useToast();
   const meta = STATUS_META[e.status];
   const stage = STAGE_META[e.stage];
 
+  function refresh() {
+    const fresh = findEscrow(initial.id);
+    if (fresh) setE(fresh);
+  }
+
   function quickAction(action: string, message: string) {
     logAudit({ who: "Jin Yu", role: "Officer", action, target: e.id, detail: message });
     toast.push(message, "ok");
+  }
+
+  function handleFileDownload() {
+    const dateStr = new Date().toLocaleDateString("en-US");
+    const lines = [
+      "METRO ESCROW",
+      "Escrow Trust & Settlement Services",
+      "================================================",
+      "",
+      "ESCROW FILE: " + e.id,
+      "Generated: " + dateStr + " - Jin Yu",
+      "",
+      "PROPERTY",
+      "  Address:  " + e.property.address,
+      "  City:     " + e.property.city + ", " + e.property.state + " " + e.property.zip,
+      e.property.apn ? "  APN:      " + e.property.apn : "",
+      "",
+      "TRANSACTION",
+      "  Type:        " + e.type,
+      "  Status:      " + meta.label,
+      "  Stage:       " + stage.label,
+      "  Sale price:  " + fmtMoney(e.price),
+      "  Closing:     " + e.closingDate,
+      "",
+      "PARTIES",
+      ...e.parties.map((p) => "  " + p.role.padEnd(14) + " " + p.name + "  <" + p.email + ">" + (p.phone ? "  " + p.phone : "")),
+      "",
+      "CRITICAL DATES",
+      "  Contract:    " + (e.critical.contractAccepted ?? "-"),
+      "  EMD due:     " + (e.critical.emdDue ?? "-"),
+      "  Loan cont:   " + (e.critical.loanContingency ?? "-"),
+      "  Signing:     " + (e.critical.signing ?? "-"),
+      "  Closing:     " + (e.critical.closing ?? "-"),
+      "",
+      "------------------------------------------------",
+      "Confidential - for internal use only.",
+    ].filter(Boolean);
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "escrow-file-" + e.id + ".txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    quickAction("File summary downloaded", "Escrow file summary downloaded as .txt");
+  }
+
+  function handleEmail() {
+    const recipients = e.parties.filter((p) => p.email).map((p) => p.email).join(",");
+    const subject = encodeURIComponent("Escrow " + e.id + " - " + e.property.address);
+    const body = encodeURIComponent(
+      "Hello,\n\n" +
+      "Regarding escrow " + e.id + " at " + e.property.address + ", " + e.property.city + ", " + e.property.state + " " + e.property.zip + ".\n\n" +
+      "Status: " + meta.label + "\n" +
+      "Closing: " + e.closingDate + "\n" +
+      "Sale price: " + fmtMoney(e.price) + "\n\n" +
+      "Best,\nJin Yu - Metro Escrow"
+    );
+    window.location.href = "mailto:" + recipients + "?subject=" + subject + "&body=" + body;
+    quickAction("Email composed", "Email composer opened for " + e.parties.length + " parties");
+  }
+
+  function handleUploadClick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleUploadFile(ev: React.ChangeEvent<HTMLInputElement>) {
+    const f = ev.target.files?.[0];
+    if (!f) return;
+    const doc: UserDocument = {
+      id: "doc-" + Date.now(),
+      name: f.name,
+      size: f.size,
+      mediaType: f.type || "application/octet-stream",
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: "Jin Yu"
+    };
+    addEscrowDocument(e.id, doc);
+    refresh();
+    toast.push("Uploaded: " + f.name, "ok");
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Document uploaded", target: e.id, detail: f.name });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setTab("documents");
+  }
+
+  function handleAddPartySubmit(p: Party) {
+    addEscrowParty(e.id, p, e.parties);
+    refresh();
+    toast.push("Added party: " + p.name, "ok");
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Party added", target: e.id, detail: p.role + ": " + p.name });
+    setModal(null);
+  }
+
+  function handleUpdateStatusSubmit(s: EscrowStatus) {
+    updateEscrowStatus(e.id, s);
+    refresh();
+    toast.push("Status changed to " + STATUS_META[s].label, "ok");
+    logAudit({ who: "Jin Yu", role: "Officer", action: "Status updated", target: e.id, detail: STATUS_META[s].label });
+    setModal(null);
   }
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -78,13 +191,13 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
           <ArrowLeft size={15} /> All transactions
         </Link>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => quickAction("File summary opened", "File summary opened in new view")}>
+          <Button variant="secondary" size="sm" onClick={handleFileDownload}>
             <FileDown size={13} /> File
           </Button>
           <Button variant="secondary" size="sm" onClick={() => { quickAction("File printed", "Print dialog opened"); window.print(); }}>
             <Printer size={13} /> Print
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => quickAction("File emailed", "Email queued to all parties on file")}>
+          <Button variant="secondary" size="sm" onClick={handleEmail}>
             <Mail size={13} /> Email
           </Button>
         </div>
@@ -140,7 +253,7 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
           {tab === "overview" && <OverviewTab e={e} />}
           {tab === "parties" && <PartiesTab e={e} />}
           {tab === "tasks" && <TasksTab e={e} />}
-          {tab === "documents" && <DocumentsTab />}
+          {tab === "documents" && <DocumentsTab escrowId={e.id} />}
           {tab === "trust" && <SettlementPanel escrow={e} />}
           {tab === "title_compliance" && <TitleCompliancePanel escrowId={e.id} />}
           {tab === "wire" && <WirePanel escrowId={e.id} initial={e.wire} />}
@@ -177,16 +290,16 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
           <Card className="p-4">
             <p className="text-[13px] font-medium mb-3">Quick actions</p>
             <div className="flex flex-col gap-2">
-              <Button variant="secondary" className="justify-start" onClick={() => quickAction("Add party requested", "Add party flow opened")}>
+              <Button variant="secondary" className="justify-start" onClick={() => setModal("addParty")}>
                 <Plus size={13} /> Add party
               </Button>
-              <Button variant="secondary" className="justify-start" onClick={() => quickAction("Document upload prompted", "Drag a file into Documents tab")}>
+              <Button variant="secondary" className="justify-start" onClick={handleUploadClick}>
                 <Upload size={13} /> Upload document
               </Button>
               <Button variant="secondary" className="justify-start" onClick={() => { quickAction("Message composer opened", "Switching to Messages..."); window.location.href = "/messages"; }}>
                 <MessageSquare size={13} /> Send message
               </Button>
-              <Button variant="secondary" className="justify-start" onClick={() => quickAction("Status update requested", "Status update queued for review")}>
+              <Button variant="secondary" className="justify-start" onClick={() => setModal("updateStatus")}>
                 <RefreshCw size={13} /> Update status
               </Button>
             </div>
@@ -216,6 +329,20 @@ export function TransactionDetail({ escrow: e }: { escrow: Escrow }) {
           </div>
         </aside>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleUploadFile}
+      />
+
+      {modal === "addParty" && (
+        <AddPartyModal onClose={() => setModal(null)} onSubmit={handleAddPartySubmit} />
+      )}
+      {modal === "updateStatus" && (
+        <UpdateStatusModal current={e.status} onClose={() => setModal(null)} onSubmit={handleUpdateStatusSubmit} />
+      )}
 
       {/* Print-only footer */}
       <div className="print-only print-footer">
@@ -517,8 +644,12 @@ function TasksTab({ e }: { e: Escrow }) {
   );
 }
 
-function DocumentsTab() {
+function DocumentsTab({ escrowId }: { escrowId: string }) {
   const toast = useToast();
+  const [userDocs, setUserDocs] = React.useState<UserDocument[]>([]);
+  React.useEffect(() => {
+    setUserDocs(getEscrowDocuments(escrowId));
+  }, [escrowId]);
   const docs = [
     { name: "Purchase Agreement.pdf", type: "Contract", who: "John Buyer", date: "Apr 9", status: "Signed" },
     { name: "Home Inspection Report.pdf", type: "Inspection", who: "Inspector", date: "Apr 11", status: "AI summarized" },
@@ -532,10 +663,32 @@ function DocumentsTab() {
     <Card className="p-5">
       <div className="flex items-center justify-between mb-3">
         <p className="text-[14px] font-medium">Documents · {docs.length}</p>
-        <Button variant="primary" size="sm" onClick={() => toast.push("Document upload dialog opened", "info")}>
+        <Button variant="primary" size="sm" onClick={() => toast.push("Use the Upload document button in Quick actions to upload a new file", "info")}>
           <Upload size={13} /> Upload
         </Button>
       </div>
+      {userDocs.length > 0 && (
+        <div className="mb-4 pb-3 border-b border-cream-200">
+          <p className="text-[11px] uppercase tracking-tightish text-hermes-500 font-medium mb-2">
+            Uploaded this session ({userDocs.length})
+          </p>
+          <ul className="divide-y divide-cream-100">
+            {userDocs.map((d) => (
+              <li key={d.id} className="flex items-center gap-3 py-2">
+                <div className="grid place-items-center w-9 h-9 rounded-md bg-hermes-50 text-hermes-500 text-[11px] font-medium">
+                  NEW
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium truncate">{d.name}</p>
+                  <p className="text-[11px] text-ink-400">
+                    {(d.size / 1024).toFixed(1)} KB - {d.uploadedBy} - {new Date(d.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <ul className="divide-y divide-cream-200">
         {docs.map((d) => (
           <li
@@ -912,3 +1065,154 @@ function Info({ label, value }: { label: string; value: string }) {
     </>
   );
 }
+
+/* -------- Add Party modal -------- */
+
+function AddPartyModal({
+  onClose,
+  onSubmit
+}: {
+  onClose: () => void;
+  onSubmit: (p: Party) => void;
+}) {
+  const [name, setName] = React.useState("");
+  const [role, setRole] = React.useState<Party["role"]>("buyer");
+  const [email, setEmail] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [company, setCompany] = React.useState("");
+
+  function submit() {
+    if (!name.trim() || !email.trim()) return;
+    onSubmit({
+      id: "p-" + Date.now(),
+      name: name.trim(),
+      role,
+      email: email.trim(),
+      phone: phone.trim() || undefined,
+      company: company.trim() || undefined
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink-800/40 p-4">
+      <div className="w-full max-w-md rounded-lg bg-cream-50 p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[16px] font-medium">Add party</h2>
+          <button onClick={onClose} className="text-ink-400 hover:text-ink-800">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="flex flex-col gap-3 text-[13px]">
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">Role</span>
+            <select
+              value={role}
+              onChange={(ev) => setRole(ev.target.value as Party["role"])}
+              className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+            >
+              <option value="buyer">Buyer</option>
+              <option value="seller">Seller</option>
+              <option value="buyer_agent">Buyer agent</option>
+              <option value="seller_agent">Seller agent</option>
+              <option value="lender">Lender</option>
+              <option value="title">Title / escrow</option>
+              <option value="hoa">HOA</option>
+              <option value="tax">Tax</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">Name</span>
+            <input
+              value={name}
+              onChange={(ev) => setName(ev.target.value)}
+              placeholder="John Buyer"
+              className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">Email</span>
+            <input
+              value={email}
+              onChange={(ev) => setEmail(ev.target.value)}
+              placeholder="john@example.com"
+              className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">Phone (optional)</span>
+            <input
+              value={phone}
+              onChange={(ev) => setPhone(ev.target.value)}
+              placeholder="(213) 555-0100"
+              className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-ink-500">Company (optional)</span>
+            <input
+              value={company}
+              onChange={(ev) => setCompany(ev.target.value)}
+              placeholder="Coldwell Banker"
+              className="h-9 px-2 rounded-md border border-cream-300 bg-white"
+            />
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={submit}>Add party</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------- Update Status modal -------- */
+
+function UpdateStatusModal({
+  current,
+  onClose,
+  onSubmit
+}: {
+  current: EscrowStatus;
+  onClose: () => void;
+  onSubmit: (s: EscrowStatus) => void;
+}) {
+  const [val, setVal] = React.useState<EscrowStatus>(current);
+  const options: EscrowStatus[] = ["draft", "opened", "in_progress", "pending_closing", "closed", "cancelled"];
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink-800/40 p-4">
+      <div className="w-full max-w-sm rounded-lg bg-cream-50 p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[16px] font-medium">Update status</h2>
+          <button onClick={onClose} className="text-ink-400 hover:text-ink-800">
+            <X size={18} />
+          </button>
+        </div>
+        <p className="text-[12px] text-ink-500 mb-3">
+          Current: <span className="font-medium">{STATUS_META[current].label}</span>
+        </p>
+        <div className="flex flex-col gap-2">
+          {options.map((s) => (
+            <button
+              key={s}
+              onClick={() => setVal(s)}
+              className={
+                "text-left rounded-md border px-3 py-2 text-[13px] " +
+                (val === s
+                  ? "border-hermes-500 bg-hermes-50/50 text-ink-800"
+                  : "border-cream-300 bg-white text-ink-700 hover:bg-cream-100")
+              }
+            >
+              {STATUS_META[s].label}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={() => onSubmit(val)}>Apply</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
