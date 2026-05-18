@@ -18,6 +18,9 @@ export type UserDocument = {
   mediaType: string;
   uploadedAt: string;
   uploadedBy: string;
+  docCategory?: string;
+  aiSummary?: string;
+  extracted?: Record<string, unknown>;
 };
 
 type EscrowPatch = {

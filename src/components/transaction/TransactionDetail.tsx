@@ -10,6 +10,7 @@ import {
 import { WirePanel } from "@/components/wire/WirePanel";
 import { TitleCompliancePanel } from "@/components/transaction/TitleCompliancePanel";
 import { SettlementPanel } from "@/components/transaction/SettlementPanel";
+import { SmartDocReader } from "@/components/ai/SmartDocReader";
 import { useToast } from "@/components/ui/Toast";
 import { logAudit } from "@/lib/data/audit";
 import { Card } from "@/components/ui/Card";
@@ -647,9 +648,22 @@ function TasksTab({ e }: { e: Escrow }) {
 function DocumentsTab({ escrowId }: { escrowId: string }) {
   const toast = useToast();
   const [userDocs, setUserDocs] = React.useState<UserDocument[]>([]);
+
   React.useEffect(() => {
     setUserDocs(getEscrowDocuments(escrowId));
   }, [escrowId]);
+
+  function handleSaved(doc: UserDocument) {
+    addEscrowDocument(escrowId, doc);
+    setUserDocs(getEscrowDocuments(escrowId));
+    toast.push(
+      doc.docCategory
+        ? "AI extracted " + doc.docCategory + " fields and saved"
+        : "Document saved",
+      "ok"
+    );
+  }
+
   const docs = [
     { name: "Purchase Agreement.pdf", type: "Contract", who: "John Buyer", date: "Apr 9", status: "Signed" },
     { name: "Home Inspection Report.pdf", type: "Inspection", who: "Inspector", date: "Apr 11", status: "AI summarized" },
@@ -659,14 +673,15 @@ function DocumentsTab({ escrowId }: { escrowId: string }) {
     { name: "Statement of Information (Buyer).pdf", type: "SI", who: "John Buyer", date: "Apr 9", status: "Signed" },
     { name: "FIRPTA Certification.pdf", type: "FIRPTA", who: "Jane Seller", date: "Apr 12", status: "Signed" }
   ];
+
   return (
     <Card className="p-5">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[14px] font-medium">Documents · {docs.length}</p>
-        <Button variant="primary" size="sm" onClick={() => toast.push("Use the Upload document button in Quick actions to upload a new file", "info")}>
-          <Upload size={13} /> Upload
-        </Button>
+      <SmartDocReader onSaved={handleSaved} />
+
+      <div className="flex items-center justify-between mt-5 mb-3">
+        <p className="text-[14px] font-medium">Documents · {docs.length + userDocs.length}</p>
       </div>
+
       {userDocs.length > 0 && (
         <div className="mb-4 pb-3 border-b border-cream-200">
           <p className="text-[11px] uppercase tracking-tightish text-hermes-500 font-medium mb-2">
@@ -674,15 +689,21 @@ function DocumentsTab({ escrowId }: { escrowId: string }) {
           </p>
           <ul className="divide-y divide-cream-100">
             {userDocs.map((d) => (
-              <li key={d.id} className="flex items-center gap-3 py-2">
-                <div className="grid place-items-center w-9 h-9 rounded-md bg-hermes-50 text-hermes-500 text-[11px] font-medium">
-                  NEW
+              <li key={d.id} className="flex items-start gap-3 py-2.5">
+                <div className="grid place-items-center w-9 h-9 rounded-md bg-hermes-50 text-hermes-500 text-[10px] font-medium shrink-0">
+                  {d.docCategory ? d.docCategory.slice(0, 4).toUpperCase() : "NEW"}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium truncate">{d.name}</p>
                   <p className="text-[11px] text-ink-400">
-                    {(d.size / 1024).toFixed(1)} KB - {d.uploadedBy} - {new Date(d.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    {(d.size / 1024).toFixed(1)} KB · {d.uploadedBy} · {new Date(d.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    {d.docCategory && <span className="ml-1.5">· {d.docCategory}</span>}
                   </p>
+                  {d.aiSummary && (
+                    <p className="text-[12px] text-ink-700 mt-1 italic">
+                      &ldquo;{d.aiSummary}&rdquo;
+                    </p>
+                  )}
                 </div>
               </li>
             ))}

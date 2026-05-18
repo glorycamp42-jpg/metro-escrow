@@ -1,10 +1,16 @@
 /**
- * AI Document Reader — calls Claude to extract escrow fields from a Purchase Agreement.
+ * AI Document Reader — calls Claude to extract structured fields from
+ * various escrow documents.
  *
- * Requires ANTHROPIC_API_KEY environment variable (set in Vercel dashboard).
+ * Requires ANTHROPIC_API_KEY environment variable.
  *
- * Input  : { base64: string, mediaType: "application/pdf" | "image/png" | "image/jpeg", filename: string }
- * Output : { ok: true, extracted: Extracted } | { ok: false, reason: string }
+ * Input  : {
+ *   base64: string,
+ *   mediaType: "application/pdf" | "image/png" | "image/jpeg",
+ *   filename: string,
+ *   docType?: "purchase_agreement" | "inspection_report" | "loan_estimate" | "title_report" | "auto"
+ * }
+ * Output : { ok: true, docType: <detected/used>, extracted: any } | { ok: false, reason: string }
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -13,26 +19,19 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-type Extracted = {
-  txnNumber?: string;
-  type?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zip?: string;
-  price?: string;
-  closingDate?: string;
-  buyer?: string;
-  buyerEmail?: string;
-  seller?: string;
-  emd?: string;
-};
+type DocType =
+  | "purchase_agreement"
+  | "inspection_report"
+  | "loan_estimate"
+  | "title_report"
+  | "auto";
 
-const PROMPT = `You are reading a real estate Purchase Agreement (or similar escrow opening document).
+const PURCHASE_PROMPT = `You are reading a real estate Purchase Agreement (or similar escrow opening document).
 
 Extract these fields and return ONLY a JSON object (no markdown, no commentary):
 
 {
+  "docType": "purchase_agreement",
   "txnNumber": "TXN-YYYY-NNN format if present, else generate as TXN-<year>-<3 digit random>",
   "type": "one of: Residential Resale | Commercial | 1031 Exchange | Investment Property | REO | Refinance",
   "address": "street address only, e.g. 123 Main St",
@@ -44,12 +43,118 @@ Extract these fields and return ONLY a JSON object (no markdown, no commentary):
   "buyer": "buyer full name or entity name",
   "buyerEmail": "buyer email if present, else null",
   "seller": "seller name if present, else null",
-  "emd": "earnest money deposit as integer string if present, else null"
+  "emd": "earnest money deposit as integer string if present, else null",
+  "aiSummary": "one sentence summary of the agreement"
 }
 
-If a field is not in the document, set it to null. Do not invent values for missing fields. The only field you may generate is txnNumber when the document does not specify a file number.
+If a field is not in the document, set it to null. The only field you may generate is txnNumber when the document does not specify a file number. Return only valid JSON.`;
 
-Return only valid JSON. No prose, no fenced code block.`;
+const INSPECTION_PROMPT = `You are reading a real estate Home Inspection Report.
+
+Extract and return ONLY this JSON object:
+
+{
+  "docType": "inspection_report",
+  "inspector": "inspector full name",
+  "inspectorCompany": "company name if present, else null",
+  "inspectionDate": "YYYY-MM-DD",
+  "propertyAddress": "full address",
+  "overallCondition": "one of: Excellent | Good | Fair | Poor | null",
+  "majorIssues": ["array of major issue descriptions, max 5 items, each <= 80 chars"],
+  "minorIssues": ["array of minor issue descriptions, max 5 items"],
+  "recommendedRepairs": ["array of recommended repairs with rough $ estimate if mentioned, max 5 items"],
+  "estimatedRepairCost": "total estimated repair cost as integer string, or null",
+  "safetyConcerns": ["array of safety concerns, empty array if none"],
+  "aiSummary": "two-sentence summary covering condition + most important issues"
+}
+
+Set unknowns to null or empty array. Return only valid JSON.`;
+
+const LOAN_PROMPT = `You are reading a Loan Estimate (or Closing Disclosure) from a mortgage lender.
+
+Extract and return ONLY this JSON object:
+
+{
+  "docType": "loan_estimate",
+  "lender": "lender company name",
+  "loanOfficer": "loan officer name if present, else null",
+  "borrower": "borrower full name",
+  "propertyAddress": "full address",
+  "loanAmount": "loan amount as integer string, no commas, no $",
+  "loanType": "one of: Conventional | FHA | VA | Jumbo | Other",
+  "loanTerm": "loan term in years as integer string",
+  "interestRate": "interest rate percentage as string (e.g. '6.875')",
+  "monthlyPayment": "monthly P&I payment as integer string",
+  "estimatedClosingCosts": "estimated closing costs as integer string",
+  "cashToClose": "cash to close as integer string",
+  "rateLockExpires": "YYYY-MM-DD or null",
+  "aiSummary": "one-sentence summary"
+}
+
+Set unknowns to null. Return only valid JSON.`;
+
+const TITLE_PROMPT = `You are reading a Preliminary Title Report.
+
+Extract and return ONLY this JSON object:
+
+{
+  "docType": "title_report",
+  "titleCompany": "title company name",
+  "titleOfficer": "title officer name if present, else null",
+  "reportDate": "YYYY-MM-DD",
+  "orderNumber": "title order number if present, else null",
+  "propertyAddress": "full address",
+  "apn": "assessor parcel number if present, else null",
+  "currentVesting": "current vesting / owner of record",
+  "legalDescription": "brief legal description (lot/block/tract) if present",
+  "liens": ["array of recorded liens with amount if mentioned"],
+  "easements": ["array of easements, max 5 items, each <= 80 chars"],
+  "encumbrances": ["array of other encumbrances"],
+  "titleExceptions": ["array of title exceptions / schedule B items, max 5"],
+  "aiSummary": "two-sentence summary of title status"
+}
+
+Set unknowns to null or empty array. Return only valid JSON.`;
+
+const AUTO_PROMPT = `You are reading a real estate / escrow document. First determine which type of document this is, then extract the relevant fields.
+
+Determine the document type from one of:
+- "purchase_agreement" (sales contract, RPA, purchase contract)
+- "inspection_report" (home inspection, pest inspection, roof inspection)
+- "loan_estimate" (LE, Closing Disclosure, mortgage commitment)
+- "title_report" (preliminary title, title commitment)
+- "other" (anything else)
+
+If it's "other", return a generic summary with this shape:
+
+{
+  "docType": "other",
+  "title": "best guess document title",
+  "summary": "2-3 sentence summary",
+  "keyDates": [{"label": "...", "date": "YYYY-MM-DD"}],
+  "keyParties": [{"role": "...", "name": "..."}],
+  "keyAmounts": [{"label": "...", "amount": "integer string"}],
+  "aiSummary": "one-sentence summary"
+}
+
+Otherwise return the structured JSON for that doc type (see the corresponding prompt's shape).
+
+Return only valid JSON.`;
+
+function promptFor(docType: DocType): string {
+  switch (docType) {
+    case "purchase_agreement":
+      return PURCHASE_PROMPT;
+    case "inspection_report":
+      return INSPECTION_PROMPT;
+    case "loan_estimate":
+      return LOAN_PROMPT;
+    case "title_report":
+      return TITLE_PROMPT;
+    case "auto":
+      return AUTO_PROMPT;
+  }
+}
 
 export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -59,7 +164,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { base64?: string; mediaType?: string; filename?: string };
+  let body: { base64?: string; mediaType?: string; filename?: string; docType?: DocType };
   try {
     body = await req.json();
   } catch {
@@ -67,6 +172,8 @@ export async function POST(req: Request) {
   }
 
   const { base64, mediaType, filename } = body;
+  const docType: DocType = body.docType ?? "purchase_agreement";
+
   if (!base64 || !mediaType) {
     return NextResponse.json(
       { ok: false, reason: "Missing base64 or mediaType" },
@@ -95,20 +202,21 @@ export async function POST(req: Request) {
           }
         };
 
+  const prompt = promptFor(docType);
+
   try {
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 1024,
+      max_tokens: 1536,
       messages: [
         {
           role: "user",
-          // SDK type defs don't include the document block yet; the API does.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           content: [
             sourceBlock,
             {
               type: "text",
-              text: PROMPT + (filename ? "\n\nFile name (context only): " + filename : "")
+              text: prompt + (filename ? "\n\nFile name (context only): " + filename : "")
             }
           ] as any
         }
@@ -119,9 +227,9 @@ export async function POST(req: Request) {
     const raw = textBlock && textBlock.type === "text" ? textBlock.text : "";
     const cleaned = raw.replace(/```json\s*/i, "").replace(/```\s*$/i, "").trim();
 
-    let parsed: Extracted;
+    let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(cleaned) as Extracted;
+      parsed = JSON.parse(cleaned) as Record<string, unknown>;
     } catch {
       return NextResponse.json(
         { ok: false, reason: "Claude returned non-JSON output", raw },
@@ -129,7 +237,14 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, extracted: parsed });
+    const detectedType =
+      (typeof parsed.docType === "string" ? (parsed.docType as string) : docType);
+
+    return NextResponse.json({
+      ok: true,
+      docType: detectedType,
+      extracted: parsed
+    });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ ok: false, reason: errMsg }, { status: 500 });
