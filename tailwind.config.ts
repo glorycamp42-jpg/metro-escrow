@@ -2,42 +2,44 @@ import type { Config } from "tailwindcss";
 
 /**
  * Metro Escrow — Hermès-inspired tone.
- *  - hermes:  signature orange (#F37021)
- *  - cream:   warm paper bg
- *  - ink:     deep brown for text
- *  - sand:    muted secondary text / borders
+ * Colors are CSS-variable based so the entire palette can flip
+ * between light and dark by toggling `.dark` on <html>.
+ *
+ * Vars are defined in src/styles/globals.css.
  */
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
         hermes: {
-          50: "#FFF3E8",
-          100: "#FFE8D6",
-          200: "#FFC79A",
-          300: "#FBA365",
-          400: "#F58A40",
-          500: "#F37021", // signature
-          600: "#D45F1B",
-          700: "#A8470F",
-          800: "#7A330A",
-          900: "#4A1F05"
+          50: "rgb(var(--hermes-50) / <alpha-value>)",
+          100: "rgb(var(--hermes-100) / <alpha-value>)",
+          200: "rgb(var(--hermes-200) / <alpha-value>)",
+          300: "rgb(var(--hermes-300) / <alpha-value>)",
+          400: "rgb(var(--hermes-400) / <alpha-value>)",
+          500: "rgb(var(--hermes-500) / <alpha-value>)",
+          600: "rgb(var(--hermes-600) / <alpha-value>)",
+          700: "rgb(var(--hermes-700) / <alpha-value>)",
+          800: "rgb(var(--hermes-800) / <alpha-value>)",
+          900: "rgb(var(--hermes-900) / <alpha-value>)",
+          soft: "rgb(var(--hermes-soft) / <alpha-value>)"
         },
         cream: {
-          50: "#FFFCF5",
-          100: "#FAF6EE", // canvas
-          200: "#F2EBDA",
-          300: "#E5DCC9",
-          400: "#D2C5A8"
+          50: "rgb(var(--cream-50) / <alpha-value>)",
+          100: "rgb(var(--cream-100) / <alpha-value>)",
+          200: "rgb(var(--cream-200) / <alpha-value>)",
+          300: "rgb(var(--cream-300) / <alpha-value>)",
+          400: "rgb(var(--cream-400) / <alpha-value>)"
         },
         ink: {
-          400: "#8A6F4E",
-          500: "#6B5640",
-          600: "#4A3826",
-          700: "#3B2A1A",
-          800: "#2C1810", // body text
-          900: "#1A0D08"
+          400: "rgb(var(--ink-400) / <alpha-value>)",
+          500: "rgb(var(--ink-500) / <alpha-value>)",
+          600: "rgb(var(--ink-600) / <alpha-value>)",
+          700: "rgb(var(--ink-700) / <alpha-value>)",
+          800: "rgb(var(--ink-800) / <alpha-value>)",
+          900: "rgb(var(--ink-900) / <alpha-value>)"
         }
       },
       fontFamily: {
