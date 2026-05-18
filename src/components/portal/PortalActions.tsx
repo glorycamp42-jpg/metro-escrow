@@ -11,6 +11,8 @@ import {
   type UserDocument
 } from "@/lib/data/userEscrows";
 import { sendMessage } from "@/lib/data/messages";
+import { addEnvelope } from "@/lib/data/envelopes";
+import { logAudit } from "@/lib/data/audit";
 
 type ToastState = { message: string; tone: "ok" | "info" } | null;
 
@@ -64,6 +66,13 @@ export function PortalActions({
       body: buyerName + " uploaded " + f.name + ". Please verify.",
       from: buyerName
     });
+    logAudit({
+      who: buyerName,
+      role: "Client",
+      action: "Proof of funds uploaded",
+      target: escrowId,
+      detail: f.name + " (" + (f.size / 1024).toFixed(1) + " KB)"
+    });
     showToast("Proof of funds uploaded — your officer has been notified");
     if (fileRef.current) fileRef.current.value = "";
   }
@@ -71,19 +80,75 @@ export function PortalActions({
   /* -------- Sign disclosure packet -------- */
 
   function handleSignAll(signed: boolean[]) {
-    const count = signed.filter(Boolean).length;
+    const now = new Date().toISOString();
+    const nowReadable = new Date().toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+
+    let count = 0;
+    PACKET_DOCS.forEach((docName, idx) => {
+      if (!signed[idx]) return;
+      count++;
+      const slug = docName.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+      const uniq = Date.now() + "-" + idx;
+
+      // 1. Save to escrow's documents list
+      const doc: UserDocument = {
+        id: "doc-sign-" + slug + "-" + uniq,
+        name: docName + " - Signed.pdf",
+        size: 0,
+        mediaType: "application/pdf",
+        uploadedAt: now,
+        uploadedBy: buyerName,
+        docCategory: "Disclosure",
+        aiSummary: "Signed by " + buyerName + " on " + nowReadable + ".",
+        extracted: {
+          docType: "signed_disclosure",
+          signedBy: buyerName,
+          signedAt: now,
+          documentName: docName
+        }
+      };
+      addEscrowDocument(escrowId, doc);
+
+      // 2. Save as a completed e-signature envelope (for the Signatures page)
+      addEnvelope({
+        id: "env-portal-" + slug + "-" + uniq,
+        escrowId,
+        document: docName,
+        status: "completed",
+        sentAt: now,
+        completedAt: now,
+        signers: [{ name: buyerName, email: "client@portal", status: "signed" }]
+      });
+
+      // 3. Append to audit log
+      logAudit({
+        who: buyerName,
+        role: "Client",
+        action: "Document signed",
+        target: escrowId,
+        detail: docName + " (via portal)"
+      });
+    });
+
     addPortalNotification(escrowId, {
       type: "action_required",
       title: count === PACKET_DOCS.length ? "Disclosure packet signed" : "Partial signatures received",
       body:
-        buyerName + " signed " + count + " of " + PACKET_DOCS.length + " disclosure documents.",
+        buyerName + " signed " + count + " of " + PACKET_DOCS.length +
+        " disclosure documents. Signed copies are in Documents and Signatures.",
       from: buyerName
     });
     setModal(null);
     showToast(
       count === PACKET_DOCS.length
-        ? "All disclosures signed — your officer has been notified"
-        : count + " of " + PACKET_DOCS.length + " signed"
+        ? "All disclosures signed — saved to your escrow file"
+        : count + " of " + PACKET_DOCS.length + " signed and saved"
     );
   }
 
@@ -97,6 +162,13 @@ export function PortalActions({
       title: "New message from " + buyerName,
       body: body.trim().slice(0, 140) + (body.length > 140 ? "..." : ""),
       from: buyerName
+    });
+    logAudit({
+      who: buyerName,
+      role: "Client",
+      action: "Message sent",
+      target: escrowId,
+      detail: body.trim().slice(0, 80)
     });
     setModal(null);
     showToast("Message sent — your officer will reply soon");

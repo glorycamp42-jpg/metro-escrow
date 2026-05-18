@@ -69,6 +69,13 @@ export function writeEnvelopes(list: Envelope[]) {
   }
 }
 
+/** Append an envelope; returns the saved record. */
+export function addEnvelope(env: Envelope): Envelope {
+  const list = readEnvelopes();
+  writeEnvelopes([...list, env]);
+  return env;
+}
+
 export const STATUS_LABEL: Record<EnvelopeStatus, { label: string; bg: string; fg: string }> = {
   draft: { label: "Draft", bg: "#F2EBDA", fg: "#6B5640" },
   sent: { label: "Sent", bg: "#E6F1FB", fg: "#185FA5" },
