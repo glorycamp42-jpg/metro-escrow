@@ -5,7 +5,9 @@ import {
   type Escrow,
   type EscrowStatus,
   type EscrowStage,
-  type Party
+  type Party,
+  type CriticalDates,
+  type EstimatedSettlement
 } from "./mock";
 
 const KEY = "metro-escrow:user-escrows";
@@ -23,11 +25,17 @@ export type UserDocument = {
   extracted?: Record<string, unknown>;
 };
 
-type EscrowPatch = {
+export type EscrowPatch = {
   status?: EscrowStatus;
   stage?: EscrowStage;
   parties?: Party[];
   documents?: UserDocument[];
+  type?: Escrow["type"];
+  price?: number;
+  closingDate?: string;
+  property?: Partial<Escrow["property"]>;
+  critical?: Partial<CriticalDates>;
+  settlement?: Partial<EstimatedSettlement>;
 };
 
 // ---------- user-created escrows ----------
@@ -86,8 +94,32 @@ function applyPatch(e: Escrow): Escrow {
     ...e,
     status: p.status ?? e.status,
     stage: p.stage ?? e.stage,
-    parties: p.parties ?? e.parties
+    parties: p.parties ?? e.parties,
+    type: p.type ?? e.type,
+    price: p.price ?? e.price,
+    closingDate: p.closingDate ?? e.closingDate,
+    property: p.property ? { ...e.property, ...p.property } : e.property,
+    critical: p.critical ? { ...e.critical, ...p.critical } : e.critical,
+    settlement: p.settlement ? { ...e.settlement, ...p.settlement } : e.settlement
   };
+}
+
+/** Generic patch writer with deep-merge for nested objects. */
+export function patchEscrow(id: string, patch: EscrowPatch) {
+  const all = readPatches();
+  const existing: EscrowPatch = all[id] ?? {};
+  const merged: EscrowPatch = { ...existing, ...patch };
+  if (patch.property) {
+    merged.property = { ...(existing.property ?? {}), ...patch.property };
+  }
+  if (patch.critical) {
+    merged.critical = { ...(existing.critical ?? {}), ...patch.critical };
+  }
+  if (patch.settlement) {
+    merged.settlement = { ...(existing.settlement ?? {}), ...patch.settlement };
+  }
+  all[id] = merged;
+  writePatches(all);
 }
 
 export function getEscrowDocuments(id: string): UserDocument[] {

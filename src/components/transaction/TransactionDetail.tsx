@@ -254,7 +254,7 @@ export function TransactionDetail({ escrow: initial }: { escrow: Escrow }) {
           {tab === "overview" && <OverviewTab e={e} />}
           {tab === "parties" && <PartiesTab e={e} />}
           {tab === "tasks" && <TasksTab e={e} />}
-          {tab === "documents" && <DocumentsTab escrowId={e.id} />}
+          {tab === "documents" && <DocumentsTab escrow={e} onApplied={refresh} />}
           {tab === "trust" && <SettlementPanel escrow={e} />}
           {tab === "title_compliance" && <TitleCompliancePanel escrowId={e.id} />}
           {tab === "wire" && <WirePanel escrowId={e.id} initial={e.wire} />}
@@ -645,9 +645,10 @@ function TasksTab({ e }: { e: Escrow }) {
   );
 }
 
-function DocumentsTab({ escrowId }: { escrowId: string }) {
+function DocumentsTab({ escrow, onApplied }: { escrow: Escrow; onApplied: () => void }) {
   const toast = useToast();
   const [userDocs, setUserDocs] = React.useState<UserDocument[]>([]);
+  const escrowId = escrow.id;
 
   React.useEffect(() => {
     setUserDocs(getEscrowDocuments(escrowId));
@@ -664,6 +665,11 @@ function DocumentsTab({ escrowId }: { escrowId: string }) {
     );
   }
 
+  function handleApplied() {
+    toast.push("Extracted data applied to escrow", "ok");
+    onApplied();
+  }
+
   const docs = [
     { name: "Purchase Agreement.pdf", type: "Contract", who: "John Buyer", date: "Apr 9", status: "Signed" },
     { name: "Home Inspection Report.pdf", type: "Inspection", who: "Inspector", date: "Apr 11", status: "AI summarized" },
@@ -676,7 +682,7 @@ function DocumentsTab({ escrowId }: { escrowId: string }) {
 
   return (
     <Card className="p-5">
-      <SmartDocReader onSaved={handleSaved} />
+      <SmartDocReader onSaved={handleSaved} targetEscrow={escrow} onApplied={handleApplied} />
 
       <div className="flex items-center justify-between mt-5 mb-3">
         <p className="text-[14px] font-medium">Documents · {docs.length + userDocs.length}</p>

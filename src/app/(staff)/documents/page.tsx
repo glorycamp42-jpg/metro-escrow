@@ -201,7 +201,11 @@ export default function DocumentsPage() {
               </select>
             </label>
 
-            <SmartDocReader onSaved={handleSaved} />
+            <SmartDocReader
+              onSaved={handleSaved}
+              targetEscrow={escrows.find((e) => e.id === targetEscrowId)}
+              onApplied={refresh}
+            />
 
             <div className="flex justify-end gap-2 mt-5">
               <Button variant="secondary" onClick={() => setShowUpload(false)}>

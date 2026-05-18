@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import {
-  Sparkles, Upload, CheckCircle2, FileText, AlertTriangle, Loader2
+  Sparkles, Upload, CheckCircle2, AlertTriangle, Loader2, Wand2
 } from "lucide-react";
 import type { UserDocument } from "@/lib/data/userEscrows";
+import type { Escrow } from "@/lib/data/mock";
+import { ApplyExtractedModal } from "@/components/ai/ApplyExtractedModal";
 
 type DocType =
   | "purchase_agreement"
@@ -30,9 +32,13 @@ type ApiResponse =
   | { ok: false; reason: string; raw?: string };
 
 export function SmartDocReader({
-  onSaved
+  onSaved,
+  targetEscrow,
+  onApplied
 }: {
   onSaved: (doc: UserDocument) => void;
+  targetEscrow?: Escrow;
+  onApplied?: () => void;
 }) {
   const [docType, setDocType] = React.useState<DocType>("auto");
   const [stage, setStage] = React.useState<"idle" | "reading" | "done" | "error">("idle");
@@ -41,6 +47,7 @@ export function SmartDocReader({
   const [extracted, setExtracted] = React.useState<Record<string, unknown> | null>(null);
   const [detectedCategory, setDetectedCategory] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
+  const [showApply, setShowApply] = React.useState(false);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -210,7 +217,15 @@ export function SmartDocReader({
                 </p>
               )}
               <ExtractedFields extracted={extracted} />
-              <div className="mt-3">
+              <div className="mt-3 flex items-center gap-3 flex-wrap">
+                {targetEscrow && (
+                  <button
+                    onClick={() => setShowApply(true)}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-md bg-hermes-500 text-cream-50 hover:bg-hermes-500/90"
+                  >
+                    <Wand2 size={12} /> Apply to escrow
+                  </button>
+                )}
                 <button
                   className="text-[11px] text-emerald-700 underline"
                   onClick={() => {
@@ -249,6 +264,19 @@ export function SmartDocReader({
           )}
         </div>
       </div>
+
+      {showApply && targetEscrow && extracted && (
+        <ApplyExtractedModal
+          escrow={targetEscrow}
+          extracted={extracted}
+          docCategory={detectedCategory ?? undefined}
+          onClose={() => setShowApply(false)}
+          onApplied={() => {
+            setShowApply(false);
+            if (onApplied) onApplied();
+          }}
+        />
+      )}
     </div>
   );
 }
