@@ -116,30 +116,24 @@ Extract and return ONLY this JSON object:
 
 Set unknowns to null or empty array. Return only valid JSON.`;
 
-const AUTO_PROMPT = `You are reading a real estate / escrow document. First determine which type of document this is, then extract the relevant fields.
+const AUTO_PROMPT = `You are reading a real estate / escrow document.
 
-Determine the document type from one of:
-- "purchase_agreement" (sales contract, RPA, purchase contract)
-- "inspection_report" (home inspection, pest inspection, roof inspection)
-- "loan_estimate" (LE, Closing Disclosure, mortgage commitment)
-- "title_report" (preliminary title, title commitment)
-- "other" (anything else)
+Determine the document type from EXACTLY one of these labels:
+"purchase_agreement" | "inspection_report" | "loan_estimate" | "title_report" | "other"
 
-If it's "other", return a generic summary with this shape:
+Then return ONLY this JSON object. No markdown fences, no prose before or after, no commentary. Output must start with { and end with }:
 
 {
-  "docType": "other",
-  "title": "best guess document title",
-  "summary": "2-3 sentence summary",
-  "keyDates": [{"label": "...", "date": "YYYY-MM-DD"}],
-  "keyParties": [{"role": "...", "name": "..."}],
-  "keyAmounts": [{"label": "...", "amount": "integer string"}],
-  "aiSummary": "one-sentence summary"
+  "docType": "<one of the labels above>",
+  "title": "best guess document title (e.g. 'Residential Purchase Agreement')",
+  "aiSummary": "2-3 sentence plain-language summary",
+  "keyFacts": ["array of 4-6 key facts, each <= 100 chars"],
+  "keyDates": [{"label": "short label", "date": "YYYY-MM-DD"}],
+  "keyParties": [{"role": "role", "name": "name"}],
+  "keyAmounts": [{"label": "label", "amount": "integer dollars as string"}]
 }
 
-Otherwise return the structured JSON for that doc type (see the corresponding prompt's shape).
-
-Return only valid JSON.`;
+Set unknowns to empty array []. Do NOT wrap in code fences. Output JUST the JSON.`;
 
 function promptFor(docType: DocType): string {
   switch (docType) {
@@ -154,6 +148,34 @@ function promptFor(docType: DocType): string {
     case "auto":
       return AUTO_PROMPT;
   }
+}
+
+/**
+ * Robust JSON extraction. Handles cases where Claude:
+ * - wraps output in ```json ... ``` fences
+ * - adds a prose preamble like "Here is the analysis: { ... }"
+ * - adds a postscript after the JSON
+ * Returns the largest `{...}` block found, or null.
+ */
+function extractJsonObject(raw: string): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+
+  // 1. Fenced code block
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced && fenced[1]) {
+    const inner = fenced[1].trim();
+    if (inner.startsWith("{") && inner.endsWith("}")) return inner;
+  }
+
+  // 2. First { ... last } in the whole string
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    return trimmed.slice(start, end + 1);
+  }
+
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -225,14 +247,21 @@ export async function POST(req: Request) {
 
     const textBlock = message.content.find((b) => b.type === "text");
     const raw = textBlock && textBlock.type === "text" ? textBlock.text : "";
-    const cleaned = raw.replace(/```json\s*/i, "").replace(/```\s*$/i, "").trim();
+
+    const cleaned = extractJsonObject(raw);
+    if (!cleaned) {
+      return NextResponse.json(
+        { ok: false, reason: "Claude returned non-JSON output", raw },
+        { status: 502 }
+      );
+    }
 
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(cleaned) as Record<string, unknown>;
     } catch {
       return NextResponse.json(
-        { ok: false, reason: "Claude returned non-JSON output", raw },
+        { ok: false, reason: "Claude returned malformed JSON", raw },
         { status: 502 }
       );
     }
